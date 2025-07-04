@@ -318,27 +318,33 @@
         </div>
 
         <div class="input-group">
-            <label for="model">AI mudel:</label>
-            <select id="model" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; cursor: pointer; margin-bottom: 5px;">
-                <option value="gemini-1.5-flash">Gemini 1.5 Flash (Kiire)</option>
-                <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash (Uusim, täpsem)</option>
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Võimekam)</option>
-            </select>
-            <div class="model-info">💡 Gemini 2.5 Flash on uusim mudel parema täpsusega</div>
-        </div>
+            <label for="model">AI mudel:</label>
+            <select id="model" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; cursor: pointer; margin-bottom: 5px;">
+                <option value="gemini-1.5-flash">Gemini 1.5 Flash (Kiire)</option>
+                <option value="gemini-2.5-flash" selected="">Gemini 2.5 Flash (Uusim, täpsem)</option>
+                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Võimekam)</option>
+            </select>
+            <div class="model-info">💡 Gemini 2.5 Flash on uusim mudel parema täpsusega</div>
+        </div>
 
         <div class="input-group">
-            <label for="language">Transkriptsiooni keel:</label>
-            <select id="language" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; cursor: pointer;">
-                <option value="auto">Automaatne tuvastus</option>
-                <option value="et" selected>Eesti</option>
-                <option value="en">English</option>
-                <option value="ru">Русский</option>
-                <option value="fi">Suomi</option>
-                <option value="lv">Latviešu</option>
-                <option value="lt">Lietuvių</option>
-            </select>
+            <label for="fastMode">
+                <input type="checkbox" id="fastMode" name="fastMode">
+                Kasuta kiiret režiimi (ainult 2.5 Flash mudelil)
+            </label>
         </div>
+                <div class="input-group">
+            <label for="language">Transkriptsiooni keel:</label>
+            <select id="language" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; cursor: pointer;">
+                <option value="auto">Automaatne tuvastus</option>
+                <option value="et" selected="">Eesti</option>
+                <option value="en">English</option>
+                <option value="ru">Русский</option>
+                <option value="fi">Suomi</option>
+                <option value="lv">Latviešu</option>
+                <option value="lt">Lietuvių</option>
+            </select>
+        </div>
 
         <div class="input-group">
             <label for="audioFile">Valige audiofail:</label>
