@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Audio Transkribeerija</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .api-key-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="password"], 
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="password"]:focus,
+        input[type="file"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input-label {
+            display: block;
+            padding: 12px;
+            background: #f0f0f0;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .file-input-label:hover {
+            background: #e8e8e8;
+            border-color: #667eea;
+        }
+
+        input[type="file"] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 14px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            display: none;
+        }
+
+        .status.info {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .status.success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .result-section {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .result-box {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .result-text {
+            line-height: 1.6;
+            color: #333;
+            white-space: pre-wrap;
+        }
+
+        .copy-button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.3s;
+        }
+
+        .copy-button:hover {
+            background: #218838;
+        }
+
+        .info-box {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #92400e;
+        }
+
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎙️ Gemini Audio Transkribeerija</h1>
+        
+        <div class="info-box">
+            ⚠️ Tähelepanu: See rakendus vajab Google Gemini API võtit. Saate selle luua 
+            <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a> kaudu.
+        </div>
+
+        <div class="api-key-section">
+            <div class="input-group">
+                <label for="apiKey">Gemini API võti:</label>
+                <input type="password" id="apiKey" placeholder="Sisestage oma API võti siia">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="audioFile">Valige audiofail:</label>
+            <div class="file-input-wrapper">
+                <label for="audioFile" class="file-input-label" id="fileLabel">
+                    📁 Klõpsake või lohistage audiofail siia
+                </label>
+                <input type="file" id="audioFile" accept="audio/*">
+            </div>
+        </div>
+
+        <button class="button" id="transcribeBtn" onclick="transcribeAudio()">
+            🚀 Alusta transkribeerimist
+        </button>
+
+        <div class="status" id="status"></div>
+
+        <div class="result-section" id="resultSection">
+            <h2>📝 Transkriptsioon:</h2>
+            <div class="result-box">
+                <div class="result-text" id="resultText"></div>
+            </div>
+            <button class="copy-button" onclick="copyToClipboard()">📋 Kopeeri tekst</button>
+        </div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+
+        // Faili valimise käsitlemine
+        document.getElementById('audioFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                document.getElementById('fileLabel').textContent = `✅ Valitud: ${file.name}`;
+            }
+        });
+
+        // Drag and drop funktsionaalsus
+        const fileLabel = document.getElementById('fileLabel');
+        
+        fileLabel.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileLabel.style.background = '#e0e0e0';
+        });
+
+        fileLabel.addEventListener('dragleave', () => {
+            fileLabel.style.background = '#f0f0f0';
+        });
+
+        fileLabel.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileLabel.style.background = '#f0f0f0';
+            
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('audio/')) {
+                selectedFile = file;
+                document.getElementById('audioFile').files = e.dataTransfer.files;
+                fileLabel.textContent = `✅ Valitud: ${file.name}`;
+            } else {
+                showStatus('Palun valige audiofail!', 'error');
+            }
+        });
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+        }
+
+        async function transcribeAudio() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            
+            if (!apiKey) {
+                showStatus('Palun sisestage API võti!', 'error');
+                return;
+            }
+
+            if (!selectedFile) {
+                showStatus('Palun valige audiofail!', 'error');
+                return;
+            }
+
+            const button = document.getElementById('transcribeBtn');
+            button.disabled = true;
+            button.innerHTML = '<span class="loader"></span> Transkribin...';
+            
+            showStatus('Konvertin audiofaili...', 'info');
+            
+            try {
+                // Konverdi fail base64-ks
+                const base64Audio = await fileToBase64(selectedFile);
+                
+                // Määra MIME tüüp
+                const mimeType = selectedFile.type || 'audio/wav';
+                
+                showStatus('Saadan päringu Gemini API-le...', 'info');
+                
+                // Gemini API päring
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                {
+                                    text: "Palun transkribi see audiofail võimalikult täpselt. Lisa vajadusel kirjavahemärgid ja lõigu jaotused. Kui kuuled mitut kõnelejat, märgi need ära."
+                                },
+                                {
+                                    inline_data: {
+                                        mime_type: mimeType,
+                                        data: base64Audio
+                                    }
+                                }
+                            ]
+                        }],
+                        generationConfig: {
+                            temperature: 0.1,
+                            topK: 1,
+                            topP: 1,
+                            maxOutputTokens: 8192,
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || 'API päring ebaõnnestus');
+                }
+
+                const data = await response.json();
+                
+                if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+                    const transcription = data.candidates[0].content.parts[0].text;
+                    displayResult(transcription);
+                    showStatus('Transkribeerimine õnnestus!', 'success');
+                } else {
+                    throw new Error('Transkriptsiooni ei saadud');
+                }
+                
+            } catch (error) {
+                console.error('Viga:', error);
+                showStatus(`Viga: ${error.message}`, 'error');
+            } finally {
+                button.disabled = false;
+                button.innerHTML = '🚀 Alusta transkribeerimist';
+            }
+        }
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => {
+                    // Eemalda data:audio/xxx;base64, osa
+                    const base64 = reader.result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        function displayResult(text) {
+            document.getElementById('resultText').textContent = text;
+            document.getElementById('resultSection').style.display = 'block';
+        }
+
+        function copyToClipboard() {
+            const text = document.getElementById('resultText').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                showStatus('Tekst kopeeritud!', 'success');
+            }).catch(err => {
+                showStatus('Kopeerimine ebaõnnestus', 'error');
+            });
+        }
+    </script>
+</body>
+</html>
