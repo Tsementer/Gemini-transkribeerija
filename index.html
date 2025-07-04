@@ -545,24 +545,33 @@ Instructions:
                 const data = await response.json();
                 
                 if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-                    const responseText = data.candidates[0].content.parts[0].text;
-                    
-                    try {
-                        // Proovi parsida JSON vastust
-                        const transcriptionData = JSON.parse(responseText);
-                        if (transcriptionData.segments) {
-                            displayResult(transcriptionData);
-                            showStatus('Transkribeerimine õnnestus!', 'success');
-                        } else {
-                            throw new Error('Vigane transkriptsiooni formaat');
-                        }
-                    } catch (parseError) {
-                        // Kui JSON parsimine ebaõnnestub, kuva toorvastus
-                        console.error('JSON parsimine ebaõnnestus:', parseError);
-                        displayRawResult(responseText);
-                        showStatus('Transkribeerimine õnnestus, aga vormindamine ebaõnnestus', 'success');
-                    }
-                } else {
+                      // Hangi AI-lt saadud toortekst
+                      let responseText = data.candidates[0].content.parts[0].text;
+
+                      // Puhasta tekst markdowni koodibloki märgistest
+                      const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
+                      const match = responseText.match(jsonRegex);
+
+                      if (match && match[1]) {
+                          responseText = match[1]; // Kasuta ainult puhastatud JSON sisu
+                      }
+                    
+                      try {
+                          // Proovi parsida PUHASTATUD vastust
+                          const transcriptionData = JSON.parse(responseText);
+                          if (transcriptionData.segments) {
+                              displayResult(transcriptionData);
+                              showStatus('Transkribeerimine õnnestus!', 'success');
+                          } else {
+                              throw new Error('Vigane transkriptsiooni formaat');
+                          }
+                      } catch (parseError) {
+                          // Kui parsimine ikkagi ebaõnnestub, kuva toorvastus
+                          console.error('JSON parsimine ebaõnnestus:', parseError);
+                          displayRawResult(responseText);
+                          showStatus('Transkribeerimine õnnestus, aga vormindamine ebaõnnestus', 'success');
+                      }
+                  } else {
                     throw new Error('Transkriptsiooni ei saadud');
                 }
                 
