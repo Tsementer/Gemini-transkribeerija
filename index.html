@@ -327,7 +327,7 @@
             <div class="model-info">💡 Gemini 2.5 Flash on uusim mudel parema täpsusega</div>
         </div>
 
-        <div class="input-group">
+        <div class="input-group" id="fastModeSection">
             <label for="fastMode">
                 <input type="checkbox" id="fastMode" name="fastMode">
                 Kasuta kiiret režiimi (ainult 2.5 Flash mudelil)
@@ -379,7 +379,7 @@
 
         // Mudeli valiku muutmise käsitlemine
         document.getElementById('model').addEventListener('change', function(e) {
-            const fastModeSection = document.querySelector('details');
+            const fastModeSection = document.getElementById('fastModeSection')
             if (e.target.value === 'gemini-2.5-flash') {
                 fastModeSection.style.display = 'block';
             } else {
@@ -712,7 +712,7 @@ Instructions:
         // Algne seadistus - peida kiire režiim kui mudel pole 2.5 Flash
         document.addEventListener('DOMContentLoaded', function() {
             const model = document.getElementById('model').value;
-            const fastModeSection = document.querySelector('details');
+            const fastModeSection = document.getElementById('fastModeSection');
             if (model !== 'gemini-2.5-flash') {
                 fastModeSection.style.display = 'none';
             }
