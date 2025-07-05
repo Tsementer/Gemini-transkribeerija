@@ -479,31 +479,32 @@
                     contents: [{
                         parts: [
                             {
-                                text: `Please transcribe this audio file following this exact format:
-
-IMPORTANT: Output the transcription EXACTLY in this JSON format:
+                                text: `You are an expert audio transcriptionist specializing in speaker diarization.
+Your MOST IMPORTANT task is to accurately identify and separate each unique speaker. Pay very close attention to subtle changes in voice pitch, tone, and speaking style to ensure you correctly attribute the text to the right person. Do not switch speaker labels in the middle of a person's monologue unless you are confident a different person is now speaking.
+Please transcribe the provided audio file. Output the result ONLY in the following JSON format, with no other text, explanations, or markdown formatting.
+Example of the required output format:
 {
   "segments": [
     {
       "speaker": "Speaker 1",
       "start": "0:00",
-      "end": "0:15",
-      "text": "What the speaker said"
+      "end": "0:12",
+      "text": "Tere tulemast tänasele koosolekule. Alustame kohe päevakorraga."
     },
     {
-      "speaker": "Speaker 2", 
-      "start": "0:15",
-      "end": "0:28",
-      "text": "What the other speaker said"
+      "speaker": "Speaker 2",
+      "start": "0:13",
+      "end": "0:25",
+      "text": "Aitäh. Ma soovin lisada ühe punkti seoses uue projektiga, kui see on võimalik."
     }
   ]
 }
 
-Instructions:
-1. Identify different speakers (Speaker 1, Speaker 2, etc.)
-2. Add timestamps in M:SS format
-3. Divide text into logical segments (max 2-3 sentences)
-4. Add punctuation
+Key Instructions:
+1.  **Speaker Accuracy:** This is your top priority. Identify every unique speaker (Speaker 1, Speaker 2, etc.).
+2.  **Timestamps:** Provide start and end times in M:SS format for each segment.
+3.  **Segmentation:** Break the text into logical, short segments based on pauses or speaker changes.
+4.  **Punctuation:** Add correct punctuation to the transcribed text.
 5. Output ONLY the JSON, nothing else
 6. Keep speaker labels in English (Speaker 1, Speaker 2)${languageInstruction}`
                             },
