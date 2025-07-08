@@ -1080,7 +1080,7 @@ ${transcriptionText}`;
                     updateProgress(20, true);
 
                     // Kutsume välja oma Netlify vahendaja-funktsiooni
-                    const proxyResponse = await fetch('/.netlify/functions/upload-proxy', {
+                    const proxyResponse = await fetch('/.netlify/functions/upload-proxy-background', {
                         method: 'POST',
                         headers: {
                             // Saadame faili metaandmed päistena
