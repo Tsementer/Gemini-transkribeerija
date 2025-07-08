@@ -1,7 +1,7 @@
 {
   "name": "gemini-transkribeerija-proxy",
-  "version": "1.0.0",
-  "description": "Proxy for large file uploads to Google Gemini",
+  "version": "2.0.0",
+  "description": "Function to generate signed URLs for Google Gemini file uploads",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -9,6 +9,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "node-fetch": "^2.6.7"
+    "@google-cloud/storage": "^7.11.0"
   }
 }
