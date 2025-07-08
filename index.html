@@ -1069,7 +1069,7 @@ ${transcriptionText}`;
     showStatus(`Küsin üleslaadimise luba suurele failile...`, 'info');
     updateProgress(10, true);
 
-    const proxyResponse = await fetch('/.netlify/functions/upload-proxy-background', {
+    const proxyResponse = await fetch('/.netlify/functions/generate-upload-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
