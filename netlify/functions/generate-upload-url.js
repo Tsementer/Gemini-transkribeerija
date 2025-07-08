@@ -33,11 +33,14 @@ exports.handler = async function (event) {
     const { fileName, fileType } = JSON.parse(event.body);
 
     if (!fileName || !fileType) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Missing fileName or fileType in request body' }) };
+        return { statusCode: 400, body: JSON.stringify({ error: 'Missing fileName or fileType in request body' }) };
     }
 
-    // Genereerime unikaalse failinime, et vältida konflikte
-    const uniqueFileName = `user-uploads/${new Date().getTime()}-${fileName}`;
+    // VÕTMEKOHT: Puhastame failinime, asendades kõik erimärgid allkriipsuga
+    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+
+    // Genereerime unikaalse failinime, et vältida konflikte, KASUTADES PUHASTATUD NIME
+    const uniqueFileName = `user-uploads/${new Date().getTime()}-${sanitizedFileName}`;
     
     // Loome viite failile Google'i bucketis
     const file = storage.bucket(BUCKET_NAME).file(uniqueFileName);
