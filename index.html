@@ -604,6 +604,7 @@
             document.getElementById('progressBar').style.display = 'none';
         }
 
+        // --- UUENDATUD FUNKTSIOON ---
         async function cleanTranscription(transcriptionData, apiKey, language) {
             showStatus('Puhastan teksti loetavuse parandamiseks...', 'info');
             updateProgress(95);
@@ -627,24 +628,24 @@
             
             const cleaningPrompt = `You are a text cleaning expert. Your task is to make transcribed speech more readable while preserving all important information.
 
-Given this transcription JSON, clean each segment's text by:
-1. Removing filler words (uh, um, hmm, ah, er, mhm, mm, ää, ee, noh, etc.)
-2. Removing unnecessary word repetitions (e.g., "I I I said" → "I said")
-3. Fixing obvious grammar issues caused by speech patterns
-4. Making the text flow more naturally for reading
+        Given this transcription JSON, clean each segment's text by:
+        1. Removing filler words (uh, um, hmm, ah, er, mhm, mm, ää, ee, noh, etc.)
+        2. Removing unnecessary word repetitions (e.g., "I I I said" → "I said")
+        3. Fixing obvious grammar issues caused by speech patterns
+        4. Making the text flow more naturally for reading
 
-CRITICAL RULES:
-- Keep ALL meaningful content - do not delete sentences or ideas
-- Preserve speaker labels and timestamps exactly as they are
-- For unclear or incomplete sentences, ADD italicized notes like *[unclear]* or *[incomplete thought]* instead of removing them
-- Maintain the exact same JSON structure
-- Keep the same number of segments
-- ${languageInstruction}
+        CRITICAL RULES:
+        - Keep ALL meaningful content - do not delete sentences or ideas
+        - Preserve speaker labels and timestamps exactly as they are
+        - For unclear or incomplete sentences, ADD italicized notes like *[unclear]* or *[incomplete thought]* instead of removing them
+        - Maintain the exact same JSON structure
+        - Keep the same number of segments
+        - ${languageInstruction}
+        - Return ONLY valid JSON without any markdown formatting or code blocks
+        - Ensure the output can be parsed directly as JSON
 
-Return ONLY the cleaned JSON in the exact same format.
-
-Input transcription:
-${transcriptionText}`;
+        Input transcription:
+        ${transcriptionText}`;
 
             try {
                 const requestBody = {
@@ -658,6 +659,7 @@ ${transcriptionText}`;
                         topK: 1,
                         topP: 0.8,
                         maxOutputTokens: 32000,
+                        responseMimeType: "application/json" // Lisa JSON MIME tüüp
                     }
                 };
 
@@ -678,15 +680,47 @@ ${transcriptionText}`;
                 if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
                     let cleanedText = data.candidates[0].content.parts[0].text;
                     
-                    // Puhasta JSON vastus
-                    const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
-                    const match = cleanedText.match(jsonRegex);
-                    if (match && match[1]) {
-                        cleanedText = match[1];
+                    console.log('Puhastatud teksti algus:', cleanedText.substring(0, 200));
+                    
+                    // Proovi erinevaid JSON puhastamise meetodeid
+                    let jsonText = cleanedText;
+                    
+                    // Eemalda markdown koodiblokid
+                    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/;
+                    const codeBlockMatch = jsonText.match(codeBlockRegex);
+                    if (codeBlockMatch && codeBlockMatch[1]) {
+                        jsonText = codeBlockMatch[1];
                     }
                     
-                    const cleanedData = JSON.parse(cleanedText);
-                    return cleanedData;
+                    // Leia JSON objekti algus ja lõpp
+                    const jsonStartIndex = jsonText.indexOf('{');
+                    const jsonEndIndex = jsonText.lastIndexOf('}');
+                    
+                    if (jsonStartIndex !== -1 && jsonEndIndex !== -1 && jsonEndIndex > jsonStartIndex) {
+                        jsonText = jsonText.substring(jsonStartIndex, jsonEndIndex + 1);
+                    }
+                    
+                    // Puhasta ja parsi
+                    jsonText = jsonText.trim()
+                        .replace(/\u201C/g, '"')
+                        .replace(/\u201D/g, '"')
+                        .replace(/\u2018/g, "'")
+                        .replace(/\u2019/g, "'");
+                    
+                    try {
+                        const cleanedData = JSON.parse(jsonText);
+                        
+                        // Valideeri struktuur
+                        if (!cleanedData.segments || !Array.isArray(cleanedData.segments)) {
+                            throw new Error('Vigane puhastatud struktuur');
+                        }
+                        
+                        return cleanedData;
+                    } catch (parseError) {
+                        console.error('Puhastatud teksti parsimine ebaõnnestus:', parseError);
+                        // Tagasta originaal kui puhastamine ebaõnnestus
+                        return transcriptionData;
+                    }
                 }
             } catch (error) {
                 console.error('Puhastamine ebaõnnestus:', error);
@@ -695,6 +729,7 @@ ${transcriptionText}`;
             }
         }
 
+        // --- UUENDATUD FUNKTSIOON ---
         async function transcribeAudio() {
             const apiKey = document.getElementById('apiKey').value.trim();
             const language = document.getElementById('language').value;
@@ -757,44 +792,38 @@ ${transcriptionText}`;
                             {
                                 text: `You are an expert audio transcriptionist specializing in speaker diarization.
 
-Your MOST IMPORTANT tasks are:
-1. **Complete Transcription**: Transcribe the ENTIRE audio file from beginning to end. Do not stop early or truncate the transcription.
-2. **Speaker Accuracy**: Accurately identify and separate each unique speaker. Pay very close attention to:
-   - Voice pitch and tone differences
-   - Speaking speed and rhythm
-   - Accent or pronunciation patterns
-   - Background noise differences
-   - Gender differences if apparent
-3. **Multiple Speakers**: Be prepared to identify more than 2 speakers. Listen carefully for subtle voice changes that indicate a new person is speaking.
+        Your MOST IMPORTANT tasks are:
+        1. **Complete Transcription**: Transcribe the ENTIRE audio file from beginning to end. Do not stop early or truncate the transcription.
+        2. **Speaker Accuracy**: Accurately identify and separate each unique speaker.
+        3. **Multiple Speakers**: Be prepared to identify more than 2 speakers.
 
-Please transcribe the provided audio file COMPLETELY. Output the result ONLY in the following JSON format:
+        Please transcribe the provided audio file COMPLETELY. Output the result ONLY in the following JSON format:
 
-{
-  "segments": [
-    {
-      "speaker": "Speaker 1",
-      "start": "0:00",
-      "end": "0:12",
-      "text": "Transcribed text here"
-    }
-  ],
-  "summary": {
-    "total_speakers": 3,
-    "duration": "15:32",
-    "language": "Estonian"
-  }
-}
+        {
+          "segments": [
+            {
+              "speaker": "Speaker 1",
+              "start": "0:00",
+              "end": "0:12",
+              "text": "Transcribed text here"
+            }
+          ],
+          "summary": {
+            "total_speakers": 3,
+            "duration": "15:32",
+            "language": "Estonian"
+          }
+        }
 
-Key Instructions:
-1. **Complete File**: Transcribe the ENTIRE audio file, no matter how long.
-2. **Speaker Accuracy**: Identify EVERY unique speaker (Speaker 1, Speaker 2, Speaker 3, etc.).
-3. **Voice Changes**: When you detect a voice change, assign a new speaker label.
-4. **Timestamps**: Provide accurate start and end times in M:SS or MM:SS format.
-5. **Segmentation**: Break into logical segments based on pauses or speaker changes.
-6. **Punctuation**: Add correct punctuation to the transcribed text.
-7. Output ONLY the JSON, nothing else.
-8. Keep speaker labels in English (Speaker 1, Speaker 2, etc.)${languageInstruction}${speakerInstruction}
-11. **CRITICAL**: Do not stop transcription early. Process the entire audio file.`
+        Key Instructions:
+        1. **Complete File**: Transcribe the ENTIRE audio file, no matter how long.
+        2. **Speaker Accuracy**: Identify EVERY unique speaker (Speaker 1, Speaker 2, Speaker 3, etc.).
+        3. **Timestamps**: Provide accurate start and end times in M:SS or MM:SS format.
+        4. **Segmentation**: Break into logical segments based on pauses or speaker changes.
+        5. **Punctuation**: Add correct punctuation to the transcribed text.
+        6. Output ONLY valid JSON without any additional text, markdown formatting, or code blocks.
+        7. Make sure the JSON is properly formatted and can be parsed directly.
+        8. Keep speaker labels in English (Speaker 1, Speaker 2, etc.)${languageInstruction}${speakerInstruction}`
                             },
                             {
                                 inline_data: {
@@ -809,6 +838,7 @@ Key Instructions:
                         topK: 1,
                         topP: 0.8,
                         maxOutputTokens: needsChunking ? 1000000 : 32000,
+                        responseMimeType: "application/json" // Lisa JSON MIME tüüp
                     }
                 };
                 
@@ -837,40 +867,120 @@ Key Instructions:
                 if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
                     // Hangi AI-lt saadud toortekst
                     let responseText = data.candidates[0].content.parts[0].text;
-
-                    // Puhasta tekst markdowni koodibloki märgistest
-                    const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
-                    const match = responseText.match(jsonRegex);
-
-                    if (match && match[1]) {
-                        responseText = match[1];
+                    
+                    // Lisa debug logimine
+                    console.log('Gemini API vastus (esimesed 500 tähemärki):', responseText.substring(0, 500));
+                    
+                    // Proovi erinevaid JSON puhastamise meetodeid
+                    let jsonText = responseText;
+                    
+                    // Meetod 1: Eemalda markdown koodiblokid
+                    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/;
+                    const codeBlockMatch = jsonText.match(codeBlockRegex);
+                    if (codeBlockMatch && codeBlockMatch[1]) {
+                        jsonText = codeBlockMatch[1];
                     }
+                    
+                    // Meetod 2: Leia JSON objekti algus ja lõpp
+                    const jsonStartIndex = jsonText.indexOf('{');
+                    const jsonEndIndex = jsonText.lastIndexOf('}');
+                    
+                    if (jsonStartIndex !== -1 && jsonEndIndex !== -1 && jsonEndIndex > jsonStartIndex) {
+                        jsonText = jsonText.substring(jsonStartIndex, jsonEndIndex + 1);
+                    }
+                    
+                    // Meetod 3: Eemalda tühikud ja reavahetused algusest ja lõpust
+                    jsonText = jsonText.trim();
+                    
+                    // Meetod 4: Asenda problemaatilised sümbolid
+                    jsonText = jsonText
+                        .replace(/\u201C/g, '"') // Asenda "smart quotes"
+                        .replace(/\u201D/g, '"')
+                        .replace(/\u2018/g, "'")
+                        .replace(/\u2019/g, "'")
+                        .replace(/\n\s*\n/g, '\n') // Eemalda tühjad read
+                        .replace(/,\s*}/g, '}') // Eemalda lõpukomad objektides
+                        .replace(/,\s*]/g, ']'); // Eemalda lõpukomad massiivides
                     
                     try {
                         // Proovi parsida vastust
-                        const transcriptionData = JSON.parse(responseText);
-                        if (transcriptionData.segments) {
-                            // Salvesta originaal statistika jaoks
-                            originalTranscription = JSON.parse(JSON.stringify(transcriptionData));
-                            
-                            // Kui puhastamine on lubatud, puhasta tekst
-                            if (shouldClean) {
-                                const cleanedData = await cleanTranscription(transcriptionData, apiKey, language);
-                                displayResult(cleanedData);
-                            } else {
-                                displayResult(transcriptionData);
-                            }
-                            
-                            showStatus('Transkribeerimine õnnestus!', 'success');
-                            updateProgress(100);
-                            setTimeout(hideProgress, 1000);
-                        } else {
-                            throw new Error('Vigane transkriptsiooni formaat');
+                        const transcriptionData = JSON.parse(jsonText);
+                        
+                        // Valideeri struktuur
+                        if (!transcriptionData.segments || !Array.isArray(transcriptionData.segments)) {
+                            throw new Error('Vigane transkriptsiooni struktuur - segments puudub või pole massiiv');
                         }
+                        
+                        if (transcriptionData.segments.length === 0) {
+                            throw new Error('Transkriptsioon on tühi - segmente ei leitud');
+                        }
+                        
+                        // Salvesta originaal statistika jaoks
+                        originalTranscription = JSON.parse(JSON.stringify(transcriptionData));
+                        
+                        // Kui puhastamine on lubatud, puhasta tekst
+                        if (shouldClean) {
+                            const cleanedData = await cleanTranscription(transcriptionData, apiKey, language);
+                            displayResult(cleanedData);
+                        } else {
+                            displayResult(transcriptionData);
+                        }
+                        
+                        showStatus('Transkribeerimine õnnestus!', 'success');
+                        updateProgress(100);
+                        setTimeout(hideProgress, 1000);
+                        
                     } catch (parseError) {
                         console.error('JSON parsimine ebaõnnestus:', parseError);
-                        displayRawResult(responseText);
-                        showStatus('Transkribeerimine õnnestus, aga vormindamine ebaõnnestus', 'success');
+                        console.error('Üritasin parsida:', jsonText.substring(0, 200) + '...');
+                        
+                        // Proovi leida segmente ka vigasest tekstist
+                        try {
+                            const segmentRegex = /"speaker":\s*"([^"]+)"[^}]*"start":\s*"([^"]+)"[^}]*"end":\s*"([^"]+)"[^}]*"text":\s*"([^"]+)"/g;
+                            const segments = [];
+                            let match;
+                            
+                            while ((match = segmentRegex.exec(responseText)) !== null) {
+                                segments.push({
+                                    speaker: match[1],
+                                    start: match[2],
+                                    end: match[3],
+                                    text: match[4]
+                                });
+                            }
+                            
+                            if (segments.length > 0) {
+                                const reconstructedData = {
+                                    segments: segments,
+                                    summary: {
+                                        total_speakers: new Set(segments.map(s => s.speaker)).size,
+                                        duration: segments[segments.length - 1]?.end || 'N/A',
+                                        language: language === 'auto' ? 'N/A' : language
+                                    }
+                                };
+                                
+                                originalTranscription = reconstructedData;
+                                
+                                if (shouldClean) {
+                                    const cleanedData = await cleanTranscription(reconstructedData, apiKey, language);
+                                    displayResult(cleanedData);
+                                } else {
+                                    displayResult(reconstructedData);
+                                }
+                                
+                                showStatus('Transkribeerimine õnnestus (taastatud struktuur)!', 'success');
+                                updateProgress(100);
+                                setTimeout(hideProgress, 1000);
+                            } else {
+                                // Kui segmente ei leitud, näita toorteksti
+                                displayRawResult(responseText);
+                                showStatus('Transkribeerimine õnnestus, aga vormindamine ebaõnnestus', 'success');
+                            }
+                        } catch (reconstructError) {
+                            console.error('Segmentide taastamine ebaõnnestus:', reconstructError);
+                            displayRawResult(responseText);
+                            showStatus('Transkribeerimine õnnestus, aga vormindamine ebaõnnestus', 'success');
+                        }
                     }
                 } else {
                     throw new Error('Transkriptsiooni ei saadud');
