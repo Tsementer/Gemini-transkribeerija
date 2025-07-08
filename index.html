@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini 2.5 Audio Transkribeerija</title>
+    <title>Gemini 2.5 Flash Audio Transkribeerija</title>
     <style>
         * {
             margin: 0;
@@ -252,6 +252,11 @@
             margin-top: 8px;
         }
 
+        .segment-text em {
+            color: #999;
+            font-style: italic;
+        }
+
         .export-buttons {
             display: flex;
             gap: 10px;
@@ -290,6 +295,8 @@
             color: #666;
             margin-top: 5px;
             font-style: italic;
+            text-align: center;
+            margin-bottom: 20px;
         }
 
         .info-box {
@@ -397,22 +404,41 @@
         .speaker-stat-item:last-child {
             border-bottom: none;
         }
+
+        .clean-text-option {
+            background: #e8f5e9;
+            border: 1px solid #4caf50;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .clean-text-option label {
+            font-weight: 600;
+            color: #2e7d32;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎙️ Gemini 2.5 Audio Transkribeerija</h1>
+        <h1>🎙️ Gemini 2.5 Flash Audio Transkribeerija</h1>
+        
+        <div class="model-info">
+            💎 Kasutab uusimat Gemini 2.5 Flash mudelit parima täpsuse tagamiseks
+        </div>
         
         <div class="info-box">
             ⚠️ See rakendus vajab Google Gemini API võtit. Saate selle luua 
             <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a> kaudu.
             <br><br>
-            ✨ <strong>Täiustused:</strong> 
+            ✨ <strong>Võimalused:</strong> 
             <ul style="margin: 5px 0 0 20px; font-size: 14px;">
                 <li>Toetab pikki audiofaile (automaatne tükeldamine)</li>
-                <li>Parem mitme kõneleja eristamine (kuni 8 kõnelejat)</li>
-                <li>Täpsem transkribeerimine pikematele failidele</li>
+                <li>Mitme kõneleja eristamine (kuni 8 kõnelejat)</li>
+                <li>Teksti automaatne puhastamine loetavuse parandamiseks</li>
+                <li>Kiire režiim lühemate failide jaoks</li>
                 <li>Kõnelejate statistika</li>
+                <li>Mitmekeelne tugi</li>
             </ul>
         </div>
 
@@ -421,16 +447,6 @@
                 <label for="apiKey">Gemini API võti:</label>
                 <input type="password" id="apiKey" placeholder="Sisestage oma API võti siia">
             </div>
-        </div>
-
-        <div class="input-group">
-            <label for="model">AI mudel:</label>
-            <select id="model">
-                <option value="gemini-1.5-flash">Gemini 1.5 Flash (Kiire)</option>
-                <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash (Uusim, täpsem)</option>
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Võimekam)</option>
-            </select>
-            <div class="model-info">💡 Gemini 2.5 Flash on uusim mudel parema täpsusega</div>
         </div>
 
         <div class="input-group">
@@ -444,6 +460,16 @@
                 <option value="lv">Latviešu</option>
                 <option value="lt">Lietuvių</option>
             </select>
+        </div>
+
+        <div class="clean-text-option">
+            <label class="checkbox-label">
+                <input type="checkbox" id="cleanText" name="cleanText" checked>
+                <span>🧹 Puhasta tekst (eemalda täitesõnad ja kordused)</span>
+            </label>
+            <div style="font-size: 12px; color: #666; margin-top: 5px; margin-left: 26px;">
+                Muudab teksti sujuvamalt loetavaks, eemaldades suulisele kõnele omased elemendid
+            </div>
         </div>
 
         <div class="advanced-settings">
@@ -466,10 +492,10 @@
                     </select>
                 </div>
 
-                <div class="input-group" id="fastModeSection">
+                <div class="input-group">
                     <label class="checkbox-label">
                         <input type="checkbox" id="fastMode" name="fastMode">
-                        <span>Kasuta kiiret režiimi (ainult 2.5 Flash mudelil)</span>
+                        <span>Kasuta kiiret režiimi (lühematele failidele)</span>
                     </label>
                 </div>
 
@@ -516,17 +542,7 @@
     <script>
         let selectedFile = null;
         let currentTranscription = null;
-
-        // Mudeli valiku muutmise käsitlemine
-        document.getElementById('model').addEventListener('change', function(e) {
-            const fastModeSection = document.getElementById('fastModeSection');
-            if (e.target.value === 'gemini-2.5-flash') {
-                fastModeSection.style.display = 'block';
-            } else {
-                fastModeSection.style.display = 'none';
-                document.getElementById('fastMode').checked = false;
-            }
-        });
+        let originalTranscription = null; // Hoiame originaali statistika jaoks
 
         // Faili valimise käsitlemine
         document.getElementById('audioFile').addEventListener('change', function(e) {
@@ -596,11 +612,102 @@
             document.getElementById('progressBar').style.display = 'none';
         }
 
+        async function cleanTranscription(transcriptionData, apiKey, language) {
+            showStatus('Puhastan teksti loetavuse parandamiseks...', 'info');
+            updateProgress(95);
+            
+            // Konverdi transkriptsioon tekstiks
+            let transcriptionText = JSON.stringify(transcriptionData, null, 2);
+            
+            // Keele juhised
+            let languageInstruction = '';
+            if (language !== 'auto') {
+                const languageNames = {
+                    'et': 'Estonian',
+                    'en': 'English',
+                    'ru': 'Russian',
+                    'fi': 'Finnish',
+                    'lv': 'Latvian',
+                    'lt': 'Lithuanian'
+                };
+                languageInstruction = `Process the text in ${languageNames[language]} language. `;
+            }
+            
+            const cleaningPrompt = `You are a text cleaning expert. Your task is to make transcribed speech more readable while preserving all important information.
+
+Given this transcription JSON, clean each segment's text by:
+1. Removing filler words (uh, um, hmm, ah, er, mhm, mm, ää, ee, noh, etc.)
+2. Removing unnecessary word repetitions (e.g., "I I I said" → "I said")
+3. Fixing obvious grammar issues caused by speech patterns
+4. Making the text flow more naturally for reading
+
+CRITICAL RULES:
+- Keep ALL meaningful content - do not delete sentences or ideas
+- Preserve speaker labels and timestamps exactly as they are
+- For unclear or incomplete sentences, ADD italicized notes like *[unclear]* or *[incomplete thought]* instead of removing them
+- Maintain the exact same JSON structure
+- Keep the same number of segments
+- ${languageInstruction}
+
+Return ONLY the cleaned JSON in the exact same format.
+
+Input transcription:
+${transcriptionText}`;
+
+            try {
+                const requestBody = {
+                    contents: [{
+                        parts: [{
+                            text: cleaningPrompt
+                        }]
+                    }],
+                    generationConfig: {
+                        temperature: 0.1,
+                        topK: 1,
+                        topP: 0.8,
+                        maxOutputTokens: 32000,
+                    }
+                };
+
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Teksti puhastamine ebaõnnestus');
+                }
+
+                const data = await response.json();
+                
+                if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+                    let cleanedText = data.candidates[0].content.parts[0].text;
+                    
+                    // Puhasta JSON vastus
+                    const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
+                    const match = cleanedText.match(jsonRegex);
+                    if (match && match[1]) {
+                        cleanedText = match[1];
+                    }
+                    
+                    const cleanedData = JSON.parse(cleanedText);
+                    return cleanedData;
+                }
+            } catch (error) {
+                console.error('Puhastamine ebaõnnestus:', error);
+                // Tagasta originaal kui puhastamine ebaõnnestus
+                return transcriptionData;
+            }
+        }
+
         async function transcribeAudio() {
             const apiKey = document.getElementById('apiKey').value.trim();
             const language = document.getElementById('language').value;
-            const model = document.getElementById('model').value;
             const maxSpeakers = document.getElementById('maxSpeakers').value;
+            const shouldClean = document.getElementById('cleanText').checked;
             
             if (!apiKey) {
                 showStatus('Palun sisestage API võti!', 'error');
@@ -628,7 +735,7 @@
                 const fileSizeMB = selectedFile.size / (1024 * 1024);
                 const needsChunking = fileSizeMB > 10; // Üle 10MB failid
                 
-                showStatus(`Saadan päringu Gemini API-le (${model})...`, 'info');
+                showStatus('Saadan päringu Gemini 2.5 Flash API-le...', 'info');
                 updateProgress(30);
                 
                 // Keele juhised
@@ -714,14 +821,14 @@ Key Instructions:
                 };
 
                 // Lisa thinking config kui kasutaja on valinud kiire režiimi
-                if (document.getElementById('fastMode').checked && model === 'gemini-2.5-flash') {
+                if (document.getElementById('fastMode').checked) {
                     requestBody.thinkingConfig = { thinkingBudget: 0 };
                 }
                 
                 updateProgress(50);
                 
                 // Gemini API päring
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -756,7 +863,17 @@ Key Instructions:
                         // Proovi parsida vastust
                         const transcriptionData = JSON.parse(responseText);
                         if (transcriptionData.segments) {
-                            displayResult(transcriptionData);
+                            // Salvesta originaal statistika jaoks
+                            originalTranscription = JSON.parse(JSON.stringify(transcriptionData));
+                            
+                            // Kui puhastamine on lubatud, puhasta tekst
+                            if (shouldClean) {
+                                const cleanedData = await cleanTranscription(transcriptionData, apiKey, language);
+                                displayResult(cleanedData);
+                            } else {
+                                displayResult(transcriptionData);
+                            }
+                            
                             showStatus('Transkribeerimine õnnestus!', 'success');
                             updateProgress(100);
                             setTimeout(hideProgress, 1000);
@@ -799,9 +916,9 @@ Key Instructions:
             const resultBox = document.getElementById('resultBox');
             resultBox.innerHTML = '';
             
-            // Näita statistikat kui lubatud
-            if (document.getElementById('showStats').checked && transcriptionData.summary) {
-                displayStats(transcriptionData);
+            // Näita statistikat kui lubatud (kasuta originaali)
+            if (document.getElementById('showStats').checked && originalTranscription?.summary) {
+                displayStats(originalTranscription);
             }
             
             // Määra kõnelejate värvid
@@ -847,7 +964,7 @@ Key Instructions:
                 speakerStats[segment.speaker].words += segment.text.split(' ').length;
             });
             
-            let statsHTML = '<h3>📊 Statistika:</h3>';
+            let statsHTML = '<h3>📊 Statistika (originaali põhjal):</h3>';
             
             if (transcriptionData.summary) {
                 statsHTML += `
@@ -884,6 +1001,7 @@ Key Instructions:
 
         function displayRawResult(text) {
             currentTranscription = { raw: text };
+            originalTranscription = null;
             const resultBox = document.getElementById('resultBox');
             resultBox.innerHTML = `
                 <div class="error-message">
@@ -931,6 +1049,10 @@ Key Instructions:
                     text += `Keel: ${currentTranscription.summary.language || 'N/A'}\n`;
                 }
                 
+                if (document.getElementById('cleanText').checked) {
+                    text += `Tekst on puhastatud loetavuse parandamiseks\n`;
+                }
+                
                 text += `${'='.repeat(50)}\n\n`;
                 
                 currentTranscription.segments.forEach(segment => {
@@ -969,15 +1091,6 @@ Key Instructions:
             
             showStatus('JSON fail allalaaditud!', 'success');
         }
-
-        // Algne seadistus
-        document.addEventListener('DOMContentLoaded', function() {
-            const model = document.getElementById('model').value;
-            const fastModeSection = document.getElementById('fastModeSection');
-            if (model !== 'gemini-2.5-flash') {
-                fastModeSection.style.display = 'none';
-            }
-        });
     </script>
 </body>
 </html>
