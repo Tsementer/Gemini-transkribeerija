@@ -1072,45 +1072,57 @@ ${transcriptionText}`;
                 let audioPart;
                 
                 if (needsFileUpload) {
-                    showStatus(`Laen üles suurt faili (${fileSizeMB.toFixed(1)} MB)...`, 'info');
-                    updateProgress(5, true);
+    showStatus(`Laen üles suurt faili (${fileSizeMB.toFixed(1)} MB)...`, 'info');
+    updateProgress(5, true);
 
-                    // Faili konvertimine base64-ks, et see serverile saata
-                    const base64Audio = await fileToBase64(selectedFile);
-                    updateProgress(20, true);
+    const base64Audio = await fileToBase64(selectedFile);
+    updateProgress(20, true);
 
-                    // Kutsume välja oma Netlify vahendaja-funktsiooni
-                    const proxyResponse = await fetch('/.netlify/functions/upload-proxy-background', {
-                        method: 'POST',
-                        headers: {
-                            // Saadame faili metaandmed päistena
-                            'X-Goog-Upload-Header-Content-Length': selectedFile.size.toString(),
-                            'X-Goog-Upload-Header-Content-Type': selectedFile.type || 'audio/wav',
-                        },
-                        body: base64Audio // Saadame faili sisu base64 stringina
-                    });
+    // Loome JSON objekti, mis sisaldab kogu infot
+    const requestPayload = {
+        fileSize: selectedFile.size,
+        fileType: selectedFile.type || 'audio/wav',
+        fileData: base64Audio
+    };
 
-                    updateProgress(35, true);
+    // Kutsume välja oma Netlify vahendaja-funktsiooni
+    const proxyResponse = await fetch('/.netlify/functions/upload-proxy-background', {
+        method: 'POST',
+        // Oluline: me ei kasuta enam custom päiseid, vaid saadame JSON-i
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestPayload) // Saadame kogu info JSON stringina
+    });
 
-                    if (!proxyResponse.ok) {
-                        const errorData = await proxyResponse.json();
-                        throw new Error(`Faili üleslaadimine läbi proxy ebaõnnestus: ${errorData.details || errorData.error}`);
-                    }
+    updateProgress(35, true);
 
-                    const fileData = await proxyResponse.json();
-                    
-                    uploadedFileUri = fileData.file.uri;
-                    console.log('Fail üles laetud proxy kaudu:', fileData);
-                    
-                    audioPart = {
-                        file_data: {
-                            mime_type: fileData.file.mimeType,
-                            file_uri: uploadedFileUri
-                        }
-                    };
-                    
-                    showStatus('Fail üles laetud, alustan transkribeerimist...', 'info');
-                    updateProgress(40, false);
+    if (!proxyResponse.ok) {
+        // Vigade käsitlemine on nüüd palju parem
+        let errorData;
+        try {
+            errorData = await proxyResponse.json();
+        } catch(e) {
+            errorData = { error: 'Vigane vastus serverilt', details: await proxyResponse.text() };
+        }
+        throw new Error(`Faili üleslaadimine ebaõnnestus: ${errorData.details || errorData.error}`);
+    }
+
+    const fileData = await proxyResponse.json();
+    
+    uploadedFileUri = fileData.file.uri;
+    console.log('Fail üles laetud proxy kaudu:', fileData);
+    
+    audioPart = {
+        file_data: {
+            mime_type: fileData.file.mimeType,
+            file_uri: uploadedFileUri
+        }
+    };
+    
+    showStatus('Fail üles laetud, alustan transkribeerimist...', 'info');
+    updateProgress(40, false);
+}
                 } else {
                     showStatus('Konvertin audiofaili...', 'info');
                     updateProgress(10);
