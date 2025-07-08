@@ -1112,54 +1112,46 @@ ${transcriptionText}`;
                 let audioPart;
                 
                 if (needsFileUpload) {
-                    showStatus(`Laen üles suurt faili (${fileSizeMB.toFixed(1)} MB)...`, 'info');
-                    updateProgress(5, true);
-                    
-                    // Alusta resumable upload
-                    const initResponse = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}&uploadType=resumable`, {
-                        method: 'POST',
-                        headers: {
-                            'X-Goog-Upload-Protocol': 'resumable',
-                            'X-Goog-Upload-Command': 'start',
-                            'X-Goog-Upload-Header-Content-Length': selectedFile.size.toString(),
-                            'X-Goog-Upload-Header-Content-Type': selectedFile.type || 'audio/wav',
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            displayName: selectedFile.name
-                        })
-                    });
-                    
-                    if (!initResponse.ok) {
-                        const error = await initResponse.json();
-                        throw new Error(`Faili üleslaadimise alustamine ebaõnnestus: ${error.error?.message || 'Tundmatu viga'}`);
-                    }
-                    
-                    // Hangi upload URL
-                    const uploadUrl = initResponse.headers.get('X-Goog-Upload-URL');
-                    if (!uploadUrl) {
-                        throw new Error('Üleslaadimise URL puudub');
-                    }
-                    
-                    updateProgress(15, true);
-                    
-                    // Lae fail üles koos progressiga
-                    const fileData = await uploadFileWithProgress(selectedFile, uploadUrl, (progress) => {
-                        updateProgress(15 + (progress * 0.25), true); // Skaleerime 15-40% vahemikku
-                    });
-                    
-                    uploadedFileUri = fileData.file.uri;
-                    console.log('Fail üles laetud:', fileData);
-                    
-                    audioPart = {
-                        file_data: {
-                            mime_type: fileData.file.mimeType,
-                            file_uri: uploadedFileUri
-                        }
-                    };
-                    
-                    showStatus('Fail üles laetud, alustan transkribeerimist...', 'info');
-                    updateProgress(40, false);
+    showStatus(`Laen üles suurt faili (${fileSizeMB.toFixed(1)} MB)...`, 'info');
+    updateProgress(5, true);
+
+    // Faili konvertimine base64-ks, et see serverile saata
+    const base64Audio = await fileToBase64(selectedFile);
+    updateProgress(20, true);
+
+    // Kutsume välja oma Netlify vahendaja-funktsiooni
+    const proxyResponse = await fetch('/.netlify/functions/upload-proxy', {
+        method: 'POST',
+        headers: {
+            // Saadame faili metaandmed päistena
+            'X-Goog-Upload-Header-Content-Length': selectedFile.size.toString(),
+            'X-Goog-Upload-Header-Content-Type': selectedFile.type || 'audio/wav',
+        },
+        body: base64Audio // Saadame faili sisu base64 stringina
+    });
+
+    updateProgress(35, true);
+
+    if (!proxyResponse.ok) {
+        const errorData = await proxyResponse.json();
+        throw new Error(`Faili üleslaadimine läbi proxy ebaõnnestus: ${errorData.details || errorData.error}`);
+    }
+
+    const fileData = await proxyResponse.json();
+    
+    uploadedFileUri = fileData.file.uri;
+    console.log('Fail üles laetud proxy kaudu:', fileData);
+    
+    audioPart = {
+        file_data: {
+            mime_type: fileData.file.mimeType,
+            file_uri: uploadedFileUri
+        }
+    };
+    
+    showStatus('Fail üles laetud, alustan transkribeerimist...', 'info');
+    updateProgress(40, false);
+}
                     
                 } else {
                     showStatus('Konvertin audiofaili...', 'info');
