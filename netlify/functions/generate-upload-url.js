@@ -11,7 +11,7 @@ const storage = new Storage({
 
 // See on bucket, kuhu Gemini API faile laeb. Tavaliselt on see kindla nimega.
 // Kui see muutub, tuleb seda siin uuendada.
-const BUCKET_NAME = 'generativelanguage-prod-uploads';
+const BUCKET_NAME = 'carl_transkribeerija_failid_2025';
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
@@ -48,6 +48,7 @@ exports.handler = async function (event) {
       action: 'write', // Anname loa faili kirjutamiseks
       expires: Date.now() + 15 * 60 * 1000, // URL kehtib 15 minutit
       contentType: fileType, // Määrame ära, mis tüüpi faili tohib üles laadida
+      method: 'PUT',
     });
     
     // See on URI, mille me hiljem saadame Gemini API-le transkribeerimiseks
