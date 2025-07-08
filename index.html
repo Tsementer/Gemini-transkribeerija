@@ -261,6 +261,7 @@
             display: flex;
             gap: 10px;
             margin-top: 15px;
+            flex-wrap: wrap;
         }
 
         .export-button {
@@ -505,6 +506,11 @@
         .file-info-item strong {
             color: #4a5568;
         }
+
+        #cleaningOptions {
+            margin-top: 10px;
+            margin-left: 26px;
+        }
     </style>
 </head>
 <body>
@@ -561,10 +567,20 @@
         <div class="clean-text-option">
             <label class="checkbox-label">
                 <input type="checkbox" id="cleanText" name="cleanText" checked>
-                <span>🧹 Puhasta tekst (eemalda täitesõnad ja kordused)</span>
+                <span>🧹 Puhasta tekst</span>
             </label>
-            <div style="font-size: 12px; color: #666; margin-top: 5px; margin-left: 26px;">
-                Muudab teksti sujuvamalt loetavaks, eemaldades suulisele kõnele omased elemendid
+            
+            <div id="cleaningOptions">
+                <label for="cleaningLevel" style="font-size: 13px; color: #2e7d32;">Puhastamise tase:</label>
+                <select id="cleaningLevel" style="margin-top: 5px; padding: 8px; font-size: 14px;">
+                    <option value="light">Kerge - eemalda ainult ilmsed täitesõnad</option>
+                    <option value="moderate">Mõõdukas - eemalda kordused ja paranda grammatikat</option>
+                    <option value="aggressive" selected>Agressiivne - kirjuta laused ladusaks tekstiks</option>
+                    <option value="editorial">Toimetaja - tee tekstist publikatsioonikõlblik materjal</option>
+                </select>
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                    Mida agressiivsem, seda loetavam, kuid vähem sõna-sõnaline
+                </div>
             </div>
         </div>
 
@@ -586,6 +602,20 @@
                         <option value="7">7 kõnelejat</option>
                         <option value="8">8 kõnelejat</option>
                     </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="mergeSpeakers">Ühenda kõnelejate segmendid:</label>
+                    <select id="mergeSpeakers">
+                        <option value="0">Ära ühenda</option>
+                        <option value="2">Ühenda kui vahe < 2 sekundit</option>
+                        <option value="3" selected>Ühenda kui vahe < 3 sekundit</option>
+                        <option value="5">Ühenda kui vahe < 5 sekundit</option>
+                        <option value="10">Ühenda kui vahe < 10 sekundit</option>
+                    </select>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        Ühendab sama kõneleja järjestikused lõigud, kui nende vahel on väike paus
+                    </div>
                 </div>
 
                 <div class="input-group">
@@ -638,6 +668,9 @@
                 <button class="export-button" onclick="copyToClipboard()">📋 Kopeeri tekst</button>
                 <button class="export-button" onclick="downloadTranscript()">💾 Lae alla TXT</button>
                 <button class="export-button" onclick="downloadJSON()">📊 Lae alla JSON</button>
+                <button class="export-button" onclick="reprocessResults()" style="background: #6c757d;">
+                    🔄 Töötle tulemusi uuesti
+                </button>
             </div>
         </div>
     </div>
@@ -647,6 +680,11 @@
         let currentTranscription = null;
         let originalTranscription = null; 
         let uploadedFileUri = null;
+
+        // Näita/peida puhastamise valikud
+        document.getElementById('cleanText').addEventListener('change', function(e) {
+            document.getElementById('cleaningOptions').style.display = e.target.checked ? 'block' : 'none';
+        });
 
         // Faili info uuendamine
         function updateFileInfo(file) {
@@ -813,14 +851,73 @@
             });
         }
 
-        // Teksti puhastamine
+        // Abifunktsioon aja parsimiseks sekunditeks
+        function parseTime(timeStr) {
+            const parts = timeStr.split(':').map(Number);
+            if (parts.length === 2) {
+                // M:SS või MM:SS
+                return parts[0] * 60 + parts[1];
+            } else if (parts.length === 3) {
+                // H:MM:SS
+                return parts[0] * 3600 + parts[1] * 60 + parts[2];
+            }
+            return 0;
+        }
+
+        // Kõnelejate segmentide ühendamine
+        function mergeSpeakerSegments(transcriptionData, mergeThreshold = 3) {
+            if (!transcriptionData.segments || transcriptionData.segments.length === 0) {
+                return transcriptionData;
+            }
+            
+            const mergedSegments = [];
+            let currentSegment = { ...transcriptionData.segments[0] };
+            
+            for (let i = 1; i < transcriptionData.segments.length; i++) {
+                const segment = transcriptionData.segments[i];
+                const prevEnd = parseTime(currentSegment.end);
+                const currStart = parseTime(segment.start);
+                const gap = currStart - prevEnd;
+                
+                // Kui sama kõneleja ja väike vahe (alla määratud sekundi)
+                if (segment.speaker === currentSegment.speaker && gap < mergeThreshold) {
+                    // Ühenda tekstid
+                    currentSegment.text += ' ' + segment.text;
+                    currentSegment.end = segment.end;
+                } else {
+                    // Salvesta eelmine segment ja alusta uut
+                    mergedSegments.push(currentSegment);
+                    currentSegment = { ...segment };
+                }
+            }
+            
+            // Lisa viimane segment
+            mergedSegments.push(currentSegment);
+            
+            // Uuenda summary statistikat
+            const uniqueSpeakers = new Set(mergedSegments.map(s => s.speaker));
+            
+            return {
+                ...transcriptionData,
+                segments: mergedSegments,
+                summary: {
+                    ...transcriptionData.summary,
+                    total_speakers: uniqueSpeakers.size
+                }
+            };
+        }
+
+        // Täiustatud teksti puhastamine
         async function cleanTranscription(transcriptionData, apiKey, language) {
-            showStatus('Puhastan teksti loetavuse parandamiseks...', 'info');
+            showStatus('Puhastan ja sõnastan teksti ümber...', 'info');
             updateProgress(95);
             
+            const cleaningLevel = document.getElementById('cleaningLevel').value;
             let transcriptionText = JSON.stringify(transcriptionData, null, 2);
             
             let languageInstruction = '';
+            let languageSpecificRules = '';
+            
             if (language !== 'auto') {
                 const languageNames = {
                     'et': 'Estonian',
@@ -831,25 +928,74 @@
                     'lt': 'Lithuanian'
                 };
                 languageInstruction = `Process the text in ${languageNames[language]} language. `;
+                
+                if (language === 'et') {
+                    languageSpecificRules = `
+Estonian-specific cleaning:
+- "nii-öelda" - remove most instances, keep maximum one per paragraph if essential
+- "eks ole" - remove when used as filler, especially at end of sentences
+- "noh" - remove unless it conveys important hesitation
+- "ütleme" - remove when used as filler
+- "siis" - remove when redundant
+- "ee", "ää", "mm", "öö" - always remove
+- "ma ei tea" - remove when used as filler phrase
+- Fix Estonian compound words and grammar`;
+                }
             }
             
-            const cleaningPrompt = `You are a text cleaning expert. Your task is to make transcribed speech more readable while preserving all important information.
+            // Erinevad puhastamise tasemed
+            const cleaningLevels = {
+                light: `You are a gentle transcription cleaner. Make minimal edits:
+- Remove only obvious filler sounds (uh, um, ee, ää)
+- Fix only severe repetitions
+- Keep most of the original speech patterns
+- Preserve the conversational tone`,
+                
+                moderate: `You are a transcription editor. Clean the text moderately:
+- Remove all filler words and sounds
+- Fix repetitions and false starts
+- Correct basic grammar issues
+- Smooth out choppy sentences
+- Keep the general speech style`,
+                
+                aggressive: `You are a skilled editor transforming speech into readable text:
+- Remove ALL fillers, hesitations, and redundancies
+- Restructure sentences for natural flow
+- Combine related thoughts into coherent paragraphs
+- Fix all grammar and word order issues
+- Make the text smooth and pleasant to read
+- Preserve the speaker's main ideas and personality`,
+                
+                editorial: `You are a professional editor preparing text for publication:
+- Transform the speech into polished, publication-ready prose
+- Restructure entire passages for clarity and impact
+- Use proper literary techniques for flow and readability
+- Maintain the speaker's voice while elevating the language
+- Create text that reads like a well-written article or book chapter
+- Add appropriate punctuation and paragraph breaks`
+            };
+            
+            const cleaningPrompt = `${cleaningLevels[cleaningLevel]}
 
-Given this transcription JSON, clean each segment's text by:
-1. Removing filler words (uh, um, hmm, ah, er, mhm, mm, ää, ee, noh, etc.)
-2. Removing unnecessary word repetitions (e.g., "I I I said" → "I said")
-3. Fixing obvious grammar issues caused by speech patterns
-4. Making the text flow more naturally for reading
+${languageSpecificRules}
 
-CRITICAL RULES:
-- Keep ALL meaningful content - do not delete sentences or ideas
-- Preserve speaker labels and timestamps exactly as they are
-- For unclear or incomplete sentences, ADD italicized notes like *[unclear]* or *[incomplete thought]* instead of removing them
+UNIVERSAL RULES FOR ALL LEVELS:
+- Preserve ALL meaningful content, ideas, and information
+- Never change the meaning or intent
+- Keep speaker labels and timestamps EXACTLY as they are
 - Maintain the exact same JSON structure
-- Keep the same number of segments
+- For unclear audio, use *[unclear]* notation
 - ${languageInstruction}
-- Return ONLY valid JSON without any markdown formatting or code blocks
-- Ensure the output can be parsed directly as JSON
+
+${cleaningLevel === 'aggressive' || cleaningLevel === 'editorial' ? `
+AGGRESSIVE CLEANING EXAMPLES:
+Input: "Noh, ma arvan, et nii-öelda, kui me vaatame nii-öelda seda olukorda, eks ole, siis ma ei tea, võib-olla see on hoopis teistsugune, eks ole."
+Output: "Ma arvan, et kui me vaatame seda olukorda, siis see võib olla hoopis teistsugune."
+
+Input: "Just, just. Aga aga samas ma ise olen nagu ka taibanud, et nii-öelda kui käia nii-öelda kaubanduskeskustes, nii-öelda, ma ei tea, reede õhtul..."
+Output: "Just nii. Olen ka ise taibanud, et kui käia kaubanduskeskustes reede õhtul..."` : ''}
+
+Return ONLY the cleaned JSON in the exact same format.
 
 Input transcription:
 ${transcriptionText}`;
@@ -862,9 +1008,9 @@ ${transcriptionText}`;
                         }]
                     }],
                     generationConfig: {
-                        temperature: 0.1,
+                        temperature: cleaningLevel === 'editorial' ? 0.4 : 0.2,
                         topK: 1,
-                        topP: 0.8,
+                        topP: cleaningLevel === 'editorial' ? 0.95 : 0.9,
                         maxOutputTokens: 32000,
                         responseMimeType: "application/json"
                     }
@@ -889,21 +1035,26 @@ ${transcriptionText}`;
                     
                     console.log('Puhastatud teksti algus:', cleanedText.substring(0, 200));
                     
-                    // Proovi parsida otse
                     try {
                         const cleanedData = JSON.parse(cleanedText);
                         
-                        // Valideeri struktuur
                         if (!cleanedData.segments || !Array.isArray(cleanedData.segments)) {
                             throw new Error('Vigane puhastatud struktuur');
                         }
                         
+                        // Kui kasutaja valis ka segmentide ühendamise
+                        const mergeThreshold = parseInt(document.getElementById('mergeSpeakers')?.value || '0');
+                        if (mergeThreshold > 0) {
+                            return mergeSpeakerSegments(cleanedData, mergeThreshold);
+                        }
+                        
                         return cleanedData;
                     } catch (parseError) {
+                        console.error('JSON parsimine ebaõnnestus:', parseError);
+                        
                         // Proovi puhastada JSON
                         let jsonText = cleanedText;
                         
-                        // Eemalda markdown koodiblokid
                         const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/;
                         const codeBlockMatch = jsonText.match(codeBlockRegex);
                         if (codeBlockMatch && codeBlockMatch[1]) {
@@ -917,7 +1068,13 @@ ${transcriptionText}`;
                             jsonText = jsonText.substring(jsonStartIndex, jsonEndIndex + 1);
                         }
                         
-                        const cleanedData = JSON.parse(jsonText.trim());
+                        jsonText = jsonText.trim()
+                            .replace(/\u201C/g, '"')
+                            .replace(/\u201D/g, '"')
+                            .replace(/\u2018/g, "'")
+                            .replace(/\u2019/g, "'");
+                        
+                        const cleanedData = JSON.parse(jsonText);
                         return cleanedData;
                     }
                 }
@@ -1380,6 +1537,42 @@ Key Instructions:
             `;
             document.getElementById('resultSection').style.display = 'block';
             document.getElementById('speakerStats').style.display = 'none';
+        }
+
+        // Tulemuste ümbertöötlemine
+        async function reprocessResults() {
+            if (!originalTranscription) {
+                showStatus('Pole tulemusi, mida töödelda', 'error');
+                return;
+            }
+            
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const language = document.getElementById('language').value;
+            const shouldClean = document.getElementById('cleanText').checked;
+            
+            showStatus('Töötan tulemusi ümber...', 'info');
+            
+            try {
+                // Alusta originaalist
+                let processedData = JSON.parse(JSON.stringify(originalTranscription));
+                
+                // Kui puhastamine on sisse lülitatud
+                if (shouldClean) {
+                    processedData = await cleanTranscription(processedData, apiKey, language);
+                } else {
+                    // Rakenda ainult kõnelejate ühendamist kui valitud
+                    const mergeThreshold = parseInt(document.getElementById('mergeSpeakers').value);
+                    if (mergeThreshold > 0) {
+                        processedData = mergeSpeakerSegments(processedData, mergeThreshold);
+                    }
+                }
+                
+                displayResult(processedData);
+                showStatus('Tulemused töödeldud uuesti!', 'success');
+            } catch (error) {
+                console.error('Ümbertöötlemine ebaõnnestus:', error);
+                showStatus('Ümbertöötlemine ebaõnnestus', 'error');
+            }
         }
 
         // Kopeeri lõikelauale
