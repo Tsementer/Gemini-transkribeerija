@@ -418,7 +418,7 @@
             font-weight: 600;
             color: #2e7d32;
         }
-
+        
         /* File API stiilid */
         .file-input-label.large-file {
             border-color: #f59e0b !important;
@@ -516,16 +516,16 @@
 <body>
     <div class="container">
         <h1>🎙️ Gemini 2.5 Flash Audio Transkribeerija</h1>
-
+        
         <div class="model-info">
             💎 Kasutab uusimat Gemini 2.5 Flash mudelit
         </div>
-
+        
         <div class="info-box">
-            ⚠️ See rakendus vajab Google Gemini API võtit. Saate selle luua
+            ⚠️ See rakendus vajab Google Gemini API võtit. Saate selle luua 
             <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a> kaudu.
             <br><br>
-            ✨ <strong>Võimalused:</strong>
+            ✨ <strong>Võimalused:</strong> 
             <ul style="margin: 5px 0 0 20px; font-size: 14px;">
                 <li>Toetab pikki audiofaile (automaatne tükeldamine)</li>
                 <li>Mitme kõneleja eristamine (kuni 8 kõnelejat)</li>
@@ -534,7 +534,7 @@
                 <li>Mitmekeelne tugi</li>
             </ul>
         </div>
-
+        
         <div class="info-box" style="background: #e0f2fe; border-color: #0284c7; color: #075985;">
             💡 <strong>Suurte failide tugi:</strong> See rakendus toetab nüüd ka väga pikki audiofaile!
             <ul style="margin: 5px 0 0 20px; font-size: 14px;">
@@ -569,7 +569,7 @@
                 <input type="checkbox" id="cleanText" name="cleanText" checked>
                 <span>🧹 Puhasta tekst</span>
             </label>
-
+            
             <div id="cleaningOptions">
                 <label for="cleaningLevel" style="font-size: 13px; color: #2e7d32;">Puhastamise tase:</label>
                 <select id="cleaningLevel" style="margin-top: 5px; padding: 8px; font-size: 14px;">
@@ -678,8 +678,8 @@
     <script>
         let selectedFile = null;
         let currentTranscription = null;
-        let originalTranscription = null;
-        let uploadedFileUri = null;
+        let originalTranscription = null; 
+        let uploadedFileUri = null; // Globaalne muutuja, et hoida alles edukalt üleslaetud faili URI-d
 
         // Näita/peida puhastamise valikud
         document.getElementById('cleanText').addEventListener('change', function(e) {
@@ -689,15 +689,15 @@
         // Faili info uuendamine
         function updateFileInfo(file) {
             if (!file) return;
-
+            
             const fileSizeMB = file.size / (1024 * 1024);
             const fileInfoContainer = document.getElementById('fileInfoContainer');
             const fileLabel = document.getElementById('fileLabel');
-
+            
             document.getElementById('fileSize').textContent = `${fileSizeMB.toFixed(1)} MB`;
-
+            
             if (fileSizeMB > 10) {
-                document.getElementById('uploadMethod').innerHTML = '<span class="method-badge" style="background-image: linear-gradient(135deg, #f59e0b, #dc2626)">📤 Google File API</span>';
+                document.getElementById('uploadMethod').innerHTML = '<span class="method-badge" style="background-image: linear-gradient(135deg, #f59e0b, #dc2626)">📤 Google File API (Direct)</span>';
                 fileLabel.classList.add('large-file');
                 fileLabel.classList.remove('small-file');
             } else {
@@ -705,17 +705,17 @@
                 fileLabel.classList.add('small-file');
                 fileLabel.classList.remove('large-file');
             }
-
+            
             let estimatedMinutes;
             if (fileSizeMB < 5) estimatedMinutes = '< 1 minut';
             else if (fileSizeMB < 20) estimatedMinutes = '1-3 minutit';
             else if (fileSizeMB < 50) estimatedMinutes = '3-5 minutit';
             else if (fileSizeMB < 100) estimatedMinutes = '5-10 minutit';
             else estimatedMinutes = '10+ minutit';
-
+            
             document.getElementById('estimatedTime').textContent = estimatedMinutes;
             fileInfoContainer.classList.add('show');
-
+            
             let labelHtml = `✅ ${file.name}`;
             if (fileSizeMB > 10) {
                 labelHtml += `<span class="file-size-badge">${fileSizeMB.toFixed(1)} MB</span>`;
@@ -748,7 +748,7 @@
         fileLabel.addEventListener('drop', (e) => {
             e.preventDefault();
             fileLabel.style.background = '';
-
+            
             const file = e.dataTransfer.files[0];
             if (file && file.type.startsWith('audio/')) {
                 selectedFile = file;
@@ -784,10 +784,10 @@
         function updateProgress(percent, isUploading = false) {
             const progressBar = document.getElementById('progressBar');
             const progressFill = document.getElementById('progressFill');
-
+            
             progressBar.style.display = 'block';
             progressFill.style.width = percent + '%';
-
+            
             if (isUploading) {
                 progressFill.classList.add('uploading');
                 progressFill.innerHTML = `<span class="uploading-icon">📤</span> <span>Faili üleslaadimine: ${percent}%</span>`;
@@ -829,16 +829,16 @@
             if (!transcriptionData.segments || transcriptionData.segments.length === 0) {
                 return transcriptionData;
             }
-
+            
             const mergedSegments = [];
             let currentSegment = { ...transcriptionData.segments[0] };
-
+            
             for (let i = 1; i < transcriptionData.segments.length; i++) {
                 const segment = transcriptionData.segments[i];
                 const prevEnd = parseTime(currentSegment.end);
                 const currStart = parseTime(segment.start);
                 const gap = currStart - prevEnd;
-
+                
                 // Kui sama kõneleja ja väike vahe (alla määratud sekundi)
                 if (segment.speaker === currentSegment.speaker && gap < mergeThreshold) {
                     // Ühenda tekstid
@@ -850,13 +850,13 @@
                     currentSegment = { ...segment };
                 }
             }
-
+            
             // Lisa viimane segment
             mergedSegments.push(currentSegment);
-
+            
             // Uuenda summary statistikat
             const uniqueSpeakers = new Set(mergedSegments.map(s => s.speaker));
-
+            
             return {
                 ...transcriptionData,
                 segments: mergedSegments,
@@ -871,13 +871,13 @@
         async function cleanTranscription(transcriptionData, apiKey, language) {
             showStatus('Puhastan ja sõnastan teksti ümber...', 'info');
             updateProgress(95);
-
+            
             const cleaningLevel = document.getElementById('cleaningLevel').value;
             let transcriptionText = JSON.stringify(transcriptionData, null, 2);
-
+            
             let languageInstruction = '';
             let languageSpecificRules = '';
-
+            
             if (language !== 'auto') {
                 const languageNames = {
                     'et': 'Estonian',
@@ -888,7 +888,7 @@
                     'lt': 'Lithuanian'
                 };
                 languageInstruction = `Process the text in ${languageNames[language]} language. `;
-
+                
                 if (language === 'et') {
                     languageSpecificRules = `
 Estonian-specific cleaning:
@@ -902,7 +902,7 @@ Estonian-specific cleaning:
 - Fix Estonian compound words and grammar`;
                 }
             }
-
+            
             // Erinevad puhastamise tasemed
             const cleaningLevels = {
                 light: `You are a gentle transcription cleaner. Make minimal edits:
@@ -910,14 +910,14 @@ Estonian-specific cleaning:
 - Fix only severe repetitions
 - Keep most of the original speech patterns
 - Preserve the conversational tone`,
-
+                
                 moderate: `You are a transcription editor. Clean the text moderately:
 - Remove all filler words and sounds
 - Fix repetitions and false starts
 - Correct basic grammar issues
 - Smooth out choppy sentences
 - Keep the general speech style`,
-
+                
                 aggressive: `You are a skilled editor transforming speech into readable text:
 - Remove ALL fillers, hesitations, and redundancies
 - Restructure sentences for natural flow
@@ -925,7 +925,7 @@ Estonian-specific cleaning:
 - Fix all grammar and word order issues
 - Make the text smooth and pleasant to read
 - Preserve the speaker's main ideas and personality`,
-
+                
                 editorial: `You are a professional editor preparing text for publication:
 - Transform the speech into polished, publication-ready prose
 - Restructure entire passages for clarity and impact
@@ -934,7 +934,7 @@ Estonian-specific cleaning:
 - Create text that reads like a well-written article or book chapter
 - Add appropriate punctuation and paragraph breaks`
             };
-
+            
             const cleaningPrompt = `${cleaningLevels[cleaningLevel]}
 
 ${languageSpecificRules}
@@ -971,12 +971,12 @@ ${transcriptionText}`;
                         temperature: cleaningLevel === 'editorial' ? 0.4 : 0.2,
                         topK: 1,
                         topP: cleaningLevel === 'editorial' ? 0.95 : 0.9,
-                        maxOutputTokens: 32000,
+                        maxOutputTokens: 8192,
                         responseMimeType: "application/json"
                     }
                 };
 
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -985,72 +985,60 @@ ${transcriptionText}`;
                 });
 
                 if (!response.ok) {
-                    throw new Error('Teksti puhastamine ebaõnnestus');
+                    const errorText = await response.text();
+                    console.error("Puhastamise API viga:", errorText);
+                    throw new Error('Teksti puhastamine ebaõnnestus. Algne vastus tagastatud.');
                 }
 
                 const data = await response.json();
-
+                
                 if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
                     let cleanedText = data.candidates[0].content.parts[0].text;
-
-                    console.log('Puhastatud teksti algus:', cleanedText.substring(0, 200));
-
+                    
                     try {
                         const cleanedData = JSON.parse(cleanedText);
-
+                        
                         if (!cleanedData.segments || !Array.isArray(cleanedData.segments)) {
                             throw new Error('Vigane puhastatud struktuur');
                         }
-
-                        // Kui kasutaja valis ka segmentide ühendamise
+                        
                         const mergeThreshold = parseInt(document.getElementById('mergeSpeakers')?.value || '0');
                         if (mergeThreshold > 0) {
                             return mergeSpeakerSegments(cleanedData, mergeThreshold);
                         }
-
+                        
                         return cleanedData;
                     } catch (parseError) {
-                        console.error('JSON parsimine ebaõnnestus:', parseError);
-
-                        // Proovi puhastada JSON
-                        let jsonText = cleanedText;
-
+                        console.error('Puhastatud JSON parsimine ebaõnnestus, proovin parandada:', parseError);
+                        
                         const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/;
-                        const codeBlockMatch = jsonText.match(codeBlockRegex);
-                        if (codeBlockMatch && codeBlockMatch[1]) {
-                            jsonText = codeBlockMatch[1];
-                        }
-
+                        let jsonText = cleanedText.match(codeBlockRegex)?.[1] || cleanedText;
+                        
                         const jsonStartIndex = jsonText.indexOf('{');
                         const jsonEndIndex = jsonText.lastIndexOf('}');
-
                         if (jsonStartIndex !== -1 && jsonEndIndex !== -1) {
                             jsonText = jsonText.substring(jsonStartIndex, jsonEndIndex + 1);
                         }
-
-                        jsonText = jsonText.trim()
-                            .replace(/\u201C/g, '"')
-                            .replace(/\u201D/g, '"')
-                            .replace(/\u2018/g, "'")
-                            .replace(/\u2019/g, "'");
-
+                        
                         const cleanedData = JSON.parse(jsonText);
                         return cleanedData;
                     }
                 }
+                throw new Error("Puhastamisel ei leitud kandidaat-vastust.");
             } catch (error) {
                 console.error('Puhastamine ebaõnnestus:', error);
-                return transcriptionData;
+                showStatus(error.message, 'error');
+                return transcriptionData; // Tagasta algne, kui puhastamine ebaõnnestus
             }
         }
 
-                // Peamine transkribeerimise funktsioon
+        // Peamine transkribeerimise funktsioon
         async function transcribeAudio() {
             const apiKey = document.getElementById('apiKey').value.trim();
             const language = document.getElementById('language').value;
             const maxSpeakers = document.getElementById('maxSpeakers').value;
             const shouldClean = document.getElementById('cleanText').checked;
-
+            
             if (!apiKey) {
                 showStatus('Palun sisestage API võti!', 'error');
                 return;
@@ -1064,65 +1052,73 @@ ${transcriptionText}`;
             const button = document.getElementById('transcribeBtn');
             button.disabled = true;
             button.innerHTML = '<span class="loader"></span> Alustan...';
+            
+            // Korista eelmine üleslaetud faili URI
+            uploadedFileUri = null;
 
             try {
                 const fileSizeMB = selectedFile.size / (1024 * 1024);
                 const needsFileUpload = fileSizeMB > 10;
-
+                
                 let audioPart;
-
+                
                 if (needsFileUpload) {
-                    showStatus(`Laen üles suurt faili (${fileSizeMB.toFixed(1)} MB)...`, 'info');
-                    updateProgress(5, true);
-
-                    const base64Audio = await fileToBase64(selectedFile);
-                    updateProgress(20, true);
-
-                    // Loome JSON objekti, mis sisaldab kogu infot
-                    const requestPayload = {
-                        fileSize: selectedFile.size,
-                        fileType: selectedFile.type || 'audio/wav',
-                        fileData: base64Audio
-                    };
-
-                    // Kutsume välja oma Netlify vahendaja-funktsiooni
+                    // --- UUS "SIGNED URL" LOGIKA ---
+                    
+                    // 1. Küsi luba üleslaadimiseks
+                    showStatus(`Küsin üleslaadimise luba suurele failile...`, 'info');
+                    updateProgress(10, true);
+                    
                     const proxyResponse = await fetch('/.netlify/functions/upload-proxy-background', {
                         method: 'POST',
-                        // Oluline: me ei kasuta enam custom päiseid, vaid saadame JSON-i
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(requestPayload) // Saadame kogu info JSON stringina
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            fileName: selectedFile.name,
+                            fileType: selectedFile.type || 'audio/m4a'
+                        })
                     });
 
-                    updateProgress(35, true);
-
                     if (!proxyResponse.ok) {
-                        // Vigade käsitlemine on nüüd palju parem
-                        let errorData;
+                        const errorText = await proxyResponse.text();
+                        let errorDetails;
                         try {
-                            errorData = await proxyResponse.json();
+                           errorDetails = JSON.parse(errorText).details || JSON.parse(errorText).error;
                         } catch(e) {
-                            errorData = { error: 'Vigane vastus serverilt', details: await proxyResponse.text() };
+                           errorDetails = errorText;
                         }
-                        throw new Error(`Faili üleslaadimine ebaõnnestus: ${errorData.details || errorData.error}`);
+                        throw new Error(`Üleslaadimise loa saamine ebaõnnestus: ${errorDetails}`);
                     }
+                    
+                    const { signedUrl, fileUri } = await proxyResponse.json();
+                    uploadedFileUri = fileUri; // Salvesta URI hilisemaks kasutamiseks
+                    
+                    // 2. Lae fail otse Google'isse
+                    showStatus(`Laen faili üles otse Google'isse...`, 'info');
+                    updateProgress(25, true);
 
-                    const fileData = await proxyResponse.json();
+                    const uploadResponse = await fetch(signedUrl, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': selectedFile.type || 'audio/m4a' },
+                        body: selectedFile
+                    });
 
-                    uploadedFileUri = fileData.file.uri;
-                    console.log('Fail üles laetud proxy kaudu:', fileData);
+                    if (!uploadResponse.ok) {
+                        const errorText = await uploadResponse.text();
+                        throw new Error(`Faili otsene üleslaadimine Google'isse ebaõnnestus: ${errorText}`);
+                    }
 
                     audioPart = {
                         file_data: {
-                            mime_type: fileData.file.mimeType,
+                            mime_type: selectedFile.type || 'audio/m4a',
                             file_uri: uploadedFileUri
                         }
                     };
-
+    
                     showStatus('Fail üles laetud, alustan transkribeerimist...', 'info');
                     updateProgress(40, false);
+
                 } else {
+                    // --- VANA LOGIKA VÄIKESTE FAILIDE JAOKS (JÄÄB SAMAKS) ---
                     showStatus('Konvertin audiofaili...', 'info');
                     updateProgress(10);
                     const base64Audio = await fileToBase64(selectedFile);
@@ -1134,27 +1130,23 @@ ${transcriptionText}`;
                     };
                     updateProgress(30, false);
                 }
-
+                
                 showStatus('Saadan transkribeerimise päringu...', 'info');
-
+                
                 let languageInstruction = '';
                 if (language !== 'auto') {
                     const languageNames = {
-                        'et': 'Estonian',
-                        'en': 'English',
-                        'ru': 'Russian',
-                        'fi': 'Finnish',
-                        'lv': 'Latvian',
-                        'lt': 'Lithuanian'
+                        'et': 'Estonian', 'en': 'English', 'ru': 'Russian',
+                        'fi': 'Finnish', 'lv': 'Latvian', 'lt': 'Lithuanian'
                     };
                     languageInstruction = `\n9. Transcribe in ${languageNames[language]} language`;
                 }
-
+                
                 let speakerInstruction = '';
                 if (maxSpeakers !== 'auto') {
                     speakerInstruction = `\n10. There are exactly ${maxSpeakers} speakers in this audio. Identify and label all ${maxSpeakers} speakers.`;
                 }
-
+                
                 const requestBody = {
                     contents: [{
                         parts: [
@@ -1162,43 +1154,18 @@ ${transcriptionText}`;
                                 text: `You are an expert audio transcriptionist specializing in speaker diarization.
 
 Your MOST IMPORTANT tasks are:
-1. **Complete Transcription**: Transcribe the ENTIRE audio file from beginning to end. Do not stop early or truncate the transcription.
-2. **Speaker Accuracy**: Accurately identify and separate each unique speaker. Pay very close attention to:
-   - Voice pitch and tone differences
-   - Speaking speed and rhythm
-   - Accent or pronunciation patterns
-   - Background noise differences
-   - Gender differences if apparent
-3. **Multiple Speakers**: Be prepared to identify more than 2 speakers. Listen carefully for subtle voice changes that indicate a new person is speaking.
-
-Please transcribe the provided audio file COMPLETELY. Output the result ONLY in the following JSON format:
-
-{
-  "segments": [
-    {
-      "speaker": "Speaker 1",
-      "start": "0:00",
-      "end": "0:12",
-      "text": "Transcribed text here"
-    }
-  ],
-  "summary": {
-    "total_speakers": 3,
-    "duration": "15:32",
-    "language": "Estonian"
-  }
-}
+1. **Complete Transcription**: Transcribe the ENTIRE audio file from beginning to end.
+2. **Speaker Accuracy**: Accurately identify and separate each unique speaker (Speaker 1, Speaker 2, etc.).
+3. **Timestamps**: Provide accurate start and end times in M:SS or MM:SS format.
+4. **Output Format**: Output ONLY the JSON, nothing else.
 
 Key Instructions:
-1. **Complete File**: Transcribe the ENTIRE audio file, no matter how long.
-2. **Speaker Accuracy**: Identify EVERY unique speaker (Speaker 1, Speaker 2, Speaker 3, etc.).
-3. **Voice Changes**: When you detect a voice change, assign a new speaker label.
-4. **Timestamps**: Provide accurate start and end times in M:SS or MM:SS format.
-5. **Segmentation**: Break into logical segments based on pauses or speaker changes.
-6. **Punctuation**: Add correct punctuation to the transcribed text.
-7. Output ONLY the JSON, nothing else.
-8. Keep speaker labels in English (Speaker 1, Speaker 2, etc.)${languageInstruction}${speakerInstruction}
-11. **CRITICAL**: Do not stop transcription early. Process the entire audio file.`
+- Transcribe the ENTIRE audio file.
+- When you detect a voice change, assign a new speaker label.
+- Break into logical segments based on pauses or speaker changes.
+- Add correct punctuation.
+- Keep speaker labels in English (Speaker 1, Speaker 2, etc.).${languageInstruction}${speakerInstruction}
+- **CRITICAL**: Do not stop transcription early. Process the entire audio file.`
                             },
                             audioPart
                         ]
@@ -1207,19 +1174,19 @@ Key Instructions:
                         temperature: 0.1,
                         topK: 1,
                         topP: 0.8,
-                        maxOutputTokens: needsFileUpload ? 1000000 : 32000,
+                        maxOutputTokens: 8192,
                         responseMimeType: "application/json"
                     }
                 };
-
+                
                 updateProgress(50, false);
-
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(requestBody)
                 });
-
+                
                 updateProgress(70, false);
 
                 if (!response.ok) {
@@ -1229,141 +1196,61 @@ Key Instructions:
 
                 const data = await response.json();
                 updateProgress(90, false);
-
+                
                 if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
                     let responseText = data.candidates[0].content.parts[0].text;
-
-                    console.log('Gemini API vastus (esimesed 500 tähemärki):', responseText.substring(0, 500));
-
+                    
+                    let transcriptionData;
                     try {
-                        // Proovi parsida otse
-                        const transcriptionData = JSON.parse(responseText);
-
-                        // Valideeri struktuur
-                        if (!transcriptionData.segments || !Array.isArray(transcriptionData.segments)) {
-                            throw new Error('Vigane transkriptsiooni struktuur');
-                        }
-
-                        if (transcriptionData.segments.length === 0) {
-                            throw new Error('Transkriptsioon on tühi');
-                        }
-
-                        originalTranscription = JSON.parse(JSON.stringify(transcriptionData));
-
-                        if (shouldClean) {
-                            const cleanedData = await cleanTranscription(transcriptionData, apiKey, language);
-                            displayResult(cleanedData);
-                        } else {
-                            displayResult(transcriptionData);
-                        }
-
-                        showStatus('Transkribeerimine õnnestus!', 'success');
-                        updateProgress(100, false);
-                        setTimeout(hideProgress, 1000);
-
+                        transcriptionData = JSON.parse(responseText);
                     } catch (parseError) {
-                        console.error('JSON parsimine ebaõnnestus:', parseError);
-
-                        // Proovi puhastada JSON-i
-                        let jsonText = responseText;
-
-                        // Eemalda markdown koodiblokid
+                        console.error('JSON parsimine ebaõnnestus, proovin parandada:', parseError);
                         const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/;
-                        const codeBlockMatch = jsonText.match(codeBlockRegex);
-                        if (codeBlockMatch && codeBlockMatch[1]) {
-                            jsonText = codeBlockMatch[1];
-                        }
-
-                        // Leia JSON objekti algus ja lõpp
+                        let jsonText = responseText.match(codeBlockRegex)?.[1] || responseText;
                         const jsonStartIndex = jsonText.indexOf('{');
                         const jsonEndIndex = jsonText.lastIndexOf('}');
-
                         if (jsonStartIndex !== -1 && jsonEndIndex !== -1) {
                             jsonText = jsonText.substring(jsonStartIndex, jsonEndIndex + 1);
                         }
-
-                        // Puhasta JSON
-                        jsonText = jsonText.trim()
-                            .replace(/\u201C/g, '"')
-                            .replace(/\u201D/g, '"')
-                            .replace(/\u2018/g, "'")
-                            .replace(/\u2019/g, "'")
-                            .replace(/\n\s*\n/g, '\n')
-                            .replace(/,\s*}/g, '}')
-                            .replace(/,\s*]/g, ']');
-
                         try {
-                            const transcriptionData = JSON.parse(jsonText);
-
-                            if (!transcriptionData.segments || !Array.isArray(transcriptionData.segments)) {
-                                throw new Error('Vigane struktuur');
-                            }
-
-                            originalTranscription = JSON.parse(JSON.stringify(transcriptionData));
-
-                            if (shouldClean) {
-                                const cleanedData = await cleanTranscription(transcriptionData, apiKey, language);
-                                displayResult(cleanedData);
-                            } else {
-                                displayResult(transcriptionData);
-                            }
-
-                            showStatus('Transkribeerimine õnnestus!', 'success');
-                            updateProgress(100, false);
-                            setTimeout(hideProgress, 1000);
-
-                        } catch (secondParseError) {
-                            // Viimane katse - proovi leida segmente regex'iga
-                            try {
-                                const segmentRegex = /"speaker":\s*"([^"]+)"[^}]*"start":\s*"([^"]+)"[^}]*"end":\s*"([^"]+)"[^}]*"text":\s*"([^"]+)"/g;
-                                const segments = [];
-                                let match;
-
-                                while ((match = segmentRegex.exec(responseText)) !== null) {
-                                    segments.push({
-                                        speaker: match[1],
-                                        start: match[2],
-                                        end: match[3],
-                                        text: match[4]
-                                    });
-                                }
-
-                                if (segments.length > 0) {
-                                    const reconstructedData = {
-                                        segments: segments,
-                                        summary: {
-                                            total_speakers: new Set(segments.map(s => s.speaker)).size,
-                                            duration: segments[segments.length - 1]?.end || 'N/A',
-                                            language: language === 'auto' ? 'N/A' : language
-                                        }
-                                    };
-
-                                    originalTranscription = reconstructedData;
-
-                                    if (shouldClean) {
-                                        const cleanedData = await cleanTranscription(reconstructedData, apiKey, language);
-                                        displayResult(cleanedData);
-                                    } else {
-                                        displayResult(reconstructedData);
-                                    }
-
-                                    showStatus('Transkribeerimine õnnestus (taastatud struktuur)!', 'success');
-                                    updateProgress(100, false);
-                                    setTimeout(hideProgress, 1000);
-                                } else {
-                                    displayRawResult(responseText);
-                                    showStatus('Transkribeerimine õnnestus, aga vormindamine ebaõnnestus', 'success');
-                                }
-                            } catch (reconstructError) {
-                                displayRawResult(responseText);
-                                showStatus('Transkribeerimine õnnestus, aga vormindamine ebaõnnestus', 'success');
-                            }
+                           transcriptionData = JSON.parse(jsonText);
+                        } catch (finalError) {
+                            displayRawResult(responseText);
+                            throw new Error("Transkriptsiooni vormindamine ebaõnnestus isegi peale parandamist.");
                         }
                     }
-                } else {
-                    throw new Error('Transkriptsiooni ei saadud.');
-                }
 
+                    if (!transcriptionData.segments || !Array.isArray(transcriptionData.segments) || transcriptionData.segments.length === 0) {
+                        throw new Error('API vastus oli vigase struktuuriga või tühi.');
+                    }
+                        
+                    originalTranscription = JSON.parse(JSON.stringify(transcriptionData));
+                        
+                    if (shouldClean) {
+                        const cleanedData = await cleanTranscription(transcriptionData, apiKey, language);
+                        displayResult(cleanedData);
+                    } else {
+                        const mergeThreshold = parseInt(document.getElementById('mergeSpeakers')?.value || '0');
+                        if (mergeThreshold > 0) {
+                            const mergedData = mergeSpeakerSegments(transcriptionData, mergeThreshold);
+                            displayResult(mergedData);
+                        } else {
+                            displayResult(transcriptionData);
+                        }
+                    }
+                        
+                    showStatus('Transkribeerimine õnnestus!', 'success');
+                    updateProgress(100, false);
+                    setTimeout(hideProgress, 1000);
+                        
+                } else {
+                    const reason = data.candidates?.[0]?.finishReason;
+                    if (reason === 'SAFETY') {
+                        throw new Error('Transkriptsioon ebaõnnestus turvafiltrite tõttu.');
+                    }
+                    throw new Error('Transkriptsiooni ei saadud API vastusest.');
+                }
+                
             } catch (error) {
                 console.error('Viga:', error);
                 showStatus(`Viga: ${error.message}`, 'error');
@@ -1372,23 +1259,25 @@ Key Instructions:
                 button.disabled = false;
                 button.innerHTML = '🚀 Alusta transkribeerimist';
                 if (uploadedFileUri) {
+                    // Kuigi me ei saa kustutada, on hea praktika proovida
                     await cleanupUploadedFile(apiKey);
                 }
             }
         }
-
-        // Üleslaetud faili kustutamine
+        
+        // Üleslaetud faili kustutamine (Märkus: see ei pruugi töötada ilma vastava loata)
         async function cleanupUploadedFile(apiKey) {
             if (!uploadedFileUri) return;
-            console.log('Kustutan üleslaetud faili:', uploadedFileUri);
+            console.log('Proovin kustutada üleslaetud faili:', uploadedFileUri);
             try {
-                const fileToDeleteName = uploadedFileUri.split('/').pop();
+                // URI on kujul gs://bucket-name/file-path
+                const fileToDeleteName = uploadedFileUri.substring(uploadedFileUri.indexOf('/', 5) + 1);
                 await fetch(`https://generativelanguage.googleapis.com/v1beta/files/${fileToDeleteName}?key=${apiKey}`, {
                     method: 'DELETE'
                 });
-                console.log('Fail kustutatud.');
+                console.log('Faili kustutamise päring saadetud.');
             } catch (error) {
-                console.error('Viga faili kustutamisel:', error);
+                console.error('Viga faili kustutamise päringu saatmisel:', error);
             } finally {
                 uploadedFileUri = null;
             }
@@ -1407,14 +1296,14 @@ Key Instructions:
             currentTranscription = transcriptionData;
             const resultBox = document.getElementById('resultBox');
             resultBox.innerHTML = '';
-
+            
             if (document.getElementById('showStats').checked && originalTranscription?.summary) {
                 displayStats(originalTranscription);
             }
-
+            
             const speakerColors = {};
             let colorIndex = 1;
-
+            
             transcriptionData.segments.forEach(segment => {
                 if (!speakerColors[segment.speaker]) {
                     speakerColors[segment.speaker] = `speaker-${colorIndex}`;
@@ -1431,7 +1320,7 @@ Key Instructions:
                 `;
                 resultBox.appendChild(segmentDiv);
             });
-
+            
             document.getElementById('resultSection').style.display = 'block';
         }
 
@@ -1440,7 +1329,7 @@ Key Instructions:
             const statsDiv = document.getElementById('speakerStats');
             const speakerStats = {};
             let totalSegments = transcriptionData.segments.length;
-
+            
             transcriptionData.segments.forEach(segment => {
                 if (!speakerStats[segment.speaker]) {
                     speakerStats[segment.speaker] = { segments: 0, words: 0 };
@@ -1448,7 +1337,7 @@ Key Instructions:
                 speakerStats[segment.speaker].segments++;
                 speakerStats[segment.speaker].words += segment.text.split(' ').length;
             });
-
+            
             let statsHTML = '<h3>📊 Statistika (originaali põhjal):</h3>';
             if (transcriptionData.summary) {
                 statsHTML += `
@@ -1467,7 +1356,7 @@ Key Instructions:
                 `;
             }
             statsHTML += '<div style="margin-top: 10px;"><strong>Kõnelejate aktiivsus:</strong></div>';
-
+            
             Object.entries(speakerStats).forEach(([speaker, stats]) => {
                 const percentage = Math.round((stats.segments / totalSegments) * 100);
                 statsHTML += `
@@ -1477,7 +1366,7 @@ Key Instructions:
                     </div>
                 `;
             });
-
+            
             statsDiv.innerHTML = statsHTML;
             statsDiv.style.display = 'block';
         }
@@ -1489,7 +1378,7 @@ Key Instructions:
             const resultBox = document.getElementById('resultBox');
             resultBox.innerHTML = `
                 <div class="error-message">
-                    ⚠️ Transkriptsioon õnnestus, aga struktureeritud vormindamine ebaõnnestus.
+                    ⚠️ Transkriptsioon õnnestus, aga struktureeritud vormindamine ebaõnnestus. 
                     Allpool on töötlemata tekst:
                 </div>
                 <div class="transcript-segment">
@@ -1506,28 +1395,25 @@ Key Instructions:
                 showStatus('Pole tulemusi, mida töödelda', 'error');
                 return;
             }
-
+            
             const apiKey = document.getElementById('apiKey').value.trim();
             const language = document.getElementById('language').value;
             const shouldClean = document.getElementById('cleanText').checked;
-
+            
             showStatus('Töötan tulemusi ümber...', 'info');
-
+            
             try {
-                // Alusta originaalist
                 let processedData = JSON.parse(JSON.stringify(originalTranscription));
-
-                // Kui puhastamine on sisse lülitatud
+                
                 if (shouldClean) {
                     processedData = await cleanTranscription(processedData, apiKey, language);
                 } else {
-                    // Rakenda ainult kõnelejate ühendamist kui valitud
                     const mergeThreshold = parseInt(document.getElementById('mergeSpeakers').value);
                     if (mergeThreshold > 0) {
                         processedData = mergeSpeakerSegments(processedData, mergeThreshold);
                     }
                 }
-
+                
                 displayResult(processedData);
                 showStatus('Tulemused töödeldud uuesti!', 'success');
             } catch (error) {
@@ -1539,7 +1425,7 @@ Key Instructions:
         // Kopeeri lõikelauale
         function copyToClipboard() {
             let text = '';
-
+            
             if (currentTranscription?.segments) {
                 currentTranscription.segments.forEach(segment => {
                     text += `[${segment.start} - ${segment.end}] ${segment.speaker}:\n${segment.text}\n\n`;
@@ -1547,7 +1433,7 @@ Key Instructions:
             } else if (currentTranscription?.raw) {
                 text = currentTranscription.raw;
             }
-
+            
             navigator.clipboard.writeText(text).then(() => {
                 showStatus('Tekst kopeeritud!', 'success');
             }).catch(err => {
@@ -1559,24 +1445,24 @@ Key Instructions:
         function downloadTranscript() {
             let text = '';
             let filename = 'transkriptsioon.txt';
-
+            
             if (currentTranscription?.segments) {
                 text = `Transkriptsioon\n`;
                 text += `Kuupäev: ${new Date().toLocaleString('et-EE')}\n`;
                 text += `${selectedFile ? 'Fail: ' + selectedFile.name : ''}\n`;
-
+                
                 if (currentTranscription.summary) {
                     text += `Kõnelejaid: ${currentTranscription.summary.total_speakers || 'N/A'}\n`;
                     text += `Kestus: ${currentTranscription.summary.duration || 'N/A'}\n`;
                     text += `Keel: ${currentTranscription.summary.language || 'N/A'}\n`;
                 }
-
+                
                 if (document.getElementById('cleanText').checked) {
                     text += `Tekst on puhastatud loetavuse parandamiseks\n`;
                 }
-
+                
                 text += `${'='.repeat(50)}\n\n`;
-
+                
                 currentTranscription.segments.forEach(segment => {
                     text += `[${segment.start} - ${segment.end}] ${segment.speaker}:\n`;
                     text += `${segment.text}\n\n`;
@@ -1584,7 +1470,7 @@ Key Instructions:
             } else if (currentTranscription?.raw) {
                 text = currentTranscription.raw;
             }
-
+            
             const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -1592,7 +1478,7 @@ Key Instructions:
             a.download = filename;
             a.click();
             URL.revokeObjectURL(url);
-
+            
             showStatus('Fail allalaaditud!', 'success');
         }
 
@@ -1602,7 +1488,7 @@ Key Instructions:
                 showStatus('JSON formaat pole saadaval', 'error');
                 return;
             }
-
+            
             const jsonData = JSON.stringify(currentTranscription, null, 2);
             const blob = new Blob([jsonData], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -1611,7 +1497,7 @@ Key Instructions:
             a.download = 'transkriptsioon.json';
             a.click();
             URL.revokeObjectURL(url);
-
+            
             showStatus('JSON fail allalaaditud!', 'success');
         }
     </script>
