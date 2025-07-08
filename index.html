@@ -1044,7 +1044,7 @@ ${transcriptionText}`;
             }
         }
 
-        // Peamine transkribeerimise funktsioon
+                // Peamine transkribeerimise funktsioon
         async function transcribeAudio() {
             const apiKey = document.getElementById('apiKey').value.trim();
             const language = document.getElementById('language').value;
@@ -1072,47 +1072,45 @@ ${transcriptionText}`;
                 let audioPart;
                 
                 if (needsFileUpload) {
-    showStatus(`Laen üles suurt faili (${fileSizeMB.toFixed(1)} MB)...`, 'info');
-    updateProgress(5, true);
+                    showStatus(`Laen üles suurt faili (${fileSizeMB.toFixed(1)} MB)...`, 'info');
+                    updateProgress(5, true);
 
-    // Faili konvertimine base64-ks, et see serverile saata
-    const base64Audio = await fileToBase64(selectedFile);
-    updateProgress(20, true);
+                    // Faili konvertimine base64-ks, et see serverile saata
+                    const base64Audio = await fileToBase64(selectedFile);
+                    updateProgress(20, true);
 
-    // Kutsume välja oma Netlify vahendaja-funktsiooni
-    const proxyResponse = await fetch('/.netlify/functions/upload-proxy', {
-        method: 'POST',
-        headers: {
-            // Saadame faili metaandmed päistena
-            'X-Goog-Upload-Header-Content-Length': selectedFile.size.toString(),
-            'X-Goog-Upload-Header-Content-Type': selectedFile.type || 'audio/wav',
-        },
-        body: base64Audio // Saadame faili sisu base64 stringina
-    });
+                    // Kutsume välja oma Netlify vahendaja-funktsiooni
+                    const proxyResponse = await fetch('/.netlify/functions/upload-proxy', {
+                        method: 'POST',
+                        headers: {
+                            // Saadame faili metaandmed päistena
+                            'X-Goog-Upload-Header-Content-Length': selectedFile.size.toString(),
+                            'X-Goog-Upload-Header-Content-Type': selectedFile.type || 'audio/wav',
+                        },
+                        body: base64Audio // Saadame faili sisu base64 stringina
+                    });
 
-    updateProgress(35, true);
+                    updateProgress(35, true);
 
-    if (!proxyResponse.ok) {
-        const errorData = await proxyResponse.json();
-        throw new Error(`Faili üleslaadimine läbi proxy ebaõnnestus: ${errorData.details || errorData.error}`);
-    }
+                    if (!proxyResponse.ok) {
+                        const errorData = await proxyResponse.json();
+                        throw new Error(`Faili üleslaadimine läbi proxy ebaõnnestus: ${errorData.details || errorData.error}`);
+                    }
 
-    const fileData = await proxyResponse.json();
-    
-    uploadedFileUri = fileData.file.uri;
-    console.log('Fail üles laetud proxy kaudu:', fileData);
-    
-    audioPart = {
-        file_data: {
-            mime_type: fileData.file.mimeType,
-            file_uri: uploadedFileUri
-        }
-    };
-    
-    showStatus('Fail üles laetud, alustan transkribeerimist...', 'info');
-    updateProgress(40, false);
-}
+                    const fileData = await proxyResponse.json();
                     
+                    uploadedFileUri = fileData.file.uri;
+                    console.log('Fail üles laetud proxy kaudu:', fileData);
+                    
+                    audioPart = {
+                        file_data: {
+                            mime_type: fileData.file.mimeType,
+                            file_uri: uploadedFileUri
+                        }
+                    };
+                    
+                    showStatus('Fail üles laetud, alustan transkribeerimist...', 'info');
+                    updateProgress(40, false);
                 } else {
                     showStatus('Konvertin audiofaili...', 'info');
                     updateProgress(10);
