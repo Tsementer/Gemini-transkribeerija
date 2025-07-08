@@ -1,67 +1,72 @@
 // netlify/functions/upload-proxy-background.js
 
-const fetch = require('node-fetch');
+const { Storage } = require('@google-cloud/storage');
+
+// See funktsioon käivitub väljaspool handlerit, et vältida iga kord uue kliendi loomist
+const storage = new Storage({
+  // Oluline! Teenusekonto võti peab olema seadistatud Netlify keskkonnamuutujates.
+  // Netlify tunneb automaatselt ära GOOGLE_APPLICATION_CREDENTIALS_JSON muutuja.
+  credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON)
+});
+
+// See on bucket, kuhu Gemini API faile laeb. Tavaliselt on see kindla nimega.
+// Kui see muutub, tuleb seda siin uuendada.
+const BUCKET_NAME = 'generativelanguage-prod-uploads';
 
 exports.handler = async function (event) {
-  // Kontrollime, et tegemist on õige päringuga
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
+  // Kontrollime, et API võti oleks olemas
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return { statusCode: 500, body: JSON.stringify({ error: 'API key not configured' }) };
   }
+  
+  // Kontrollime, et teenusekonto andmed oleksid olemas
+  if (!process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+      return { statusCode: 500, body: JSON.stringify({ error: 'Google service account credentials not configured'}) };
+  }
 
   try {
-    // Parsime brauserist saadetud JSON-i
-    const { fileSize, fileType, fileData } = JSON.parse(event.body);
+    const { fileName, fileType } = JSON.parse(event.body);
 
-    if (!fileSize || !fileType || !fileData) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Missing file metadata or data in request body' }) };
+    if (!fileName || !fileType) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'Missing fileName or fileType in request body' }) };
     }
 
-    const UPLOAD_URL = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}&uploadType=resumable`;
+    // Genereerime unikaalse failinime, et vältida konflikte
+    const uniqueFileName = `user-uploads/${new Date().getTime()}-${fileName}`;
+    
+    // Loome viite failile Google'i bucketis
+    const file = storage.bucket(BUCKET_NAME).file(uniqueFileName);
 
-    // 1. Alustame resumable upload sessiooni Google'iga
-    const initResponse = await fetch(UPLOAD_URL, {
-      method: 'POST',
-      headers: {
-        'X-Goog-Upload-Protocol': 'resumable',
-        'X-Goog-Upload-Command': 'start',
-        'X-Goog-Upload-Header-Content-Length': fileSize.toString(),
-        'X-Goog-Upload-Header-Content-Type': fileType,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ file: { displayName: 'user-upload.m4a' } })
+    // Genereerime "allkirjastatud URL-i". See on luba brauserile otse üles laadida.
+    const [signedUrl] = await file.getSignedUrl({
+      version: 'v4',
+      action: 'write', // Anname loa faili kirjutamiseks
+      expires: Date.now() + 15 * 60 * 1000, // URL kehtib 15 minutit
+      contentType: fileType, // Määrame ära, mis tüüpi faili tohib üles laadida
     });
+    
+    // See on URI, mille me hiljem saadame Gemini API-le transkribeerimiseks
+    const fileUri = `gs://${BUCKET_NAME}/${uniqueFileName}`;
 
-    if (!initResponse.ok) {
-      const errorText = await initResponse.text();
-      return { statusCode: initResponse.status, body: JSON.stringify({ error: 'Google API init error', details: errorText }) };
-    }
-
-    // 2. Saame Google'ilt URL'i, kuhu fail laadida
-    const sessionUri = initResponse.headers.get('X-Goog-Upload-URL');
-
-    // 3. Laeme faili sisu sinna URL'ile
-    const uploadResponse = await fetch(sessionUri, {
-      method: 'PUT',
-      headers: { 'Content-Type': fileType },
-      body: Buffer.from(fileData, 'base64') // Dekodeerime base64 stringi
-    });
-
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      return { statusCode: uploadResponse.status, body: JSON.stringify({ error: 'Google API upload error', details: errorText }) };
-    }
-
-    // 4. Saadame eduka vastuse tagasi brauserile
-    const googleResponse = await uploadResponse.json();
-    return { statusCode: 200, body: JSON.stringify(googleResponse) };
+    // Saadame brauserile tagasi nii allkirjastatud URL-i kui ka faili URI
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        signedUrl: signedUrl,
+        fileUri: fileUri,
+      }),
+    };
 
   } catch (error) {
     console.error('Proxy error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: 'Internal proxy error', details: error.message }) };
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Internal proxy error', details: error.message }),
+    };
   }
 };
