@@ -37,7 +37,11 @@ exports.handler = async function (event) {
     }
 
     // VÕTMEKOHT: Puhastame failinime, asendades kõik erimärgid allkriipsuga
-    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const sanitizedFileName = fileName
+      .replace(/[^a-zA-Z0-9.\-_]/g, '_')     // Eemalda erimärgid
+      .replace(/_{2,}/g, '_')                // Asenda mitu allkriipsu ühega
+      .replace(/^_+|_+$/g, '')               // Eemalda allkriipsud algusest/lõpust
+      .substring(0, 50);                     // Piira pikkus 50 tähemärgiga
 
     // Genereerime unikaalse failinime, et vältida konflikte, KASUTADES PUHASTATUD NIME
     const uniqueFileName = `user-uploads/${new Date().getTime()}-${sanitizedFileName}`;
