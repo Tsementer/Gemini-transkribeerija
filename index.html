@@ -1063,61 +1063,62 @@ ${transcriptionText}`;
                 let audioPart;
                 
                 if (needsFileUpload) {
-                    // --- UUS "SIGNED URL" LOGIKA ---
-                    
-                    // 1. Küsi luba üleslaadimiseks
-                    showStatus(`Küsin üleslaadimise luba suurele failile...`, 'info');
-                    updateProgress(10, true);
-                    
-                    const proxyResponse = await fetch('/.netlify/functions/upload-proxy-background', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            fileName: selectedFile.name,
-                            fileType: selectedFile.type || 'audio/m4a'
-                        })
-                    });
+    // --- UUS "SIGNED URL" LOGIKA ---
 
-                    if (!proxyResponse.ok) {
-                        const errorText = await proxyResponse.text();
-                        let errorDetails;
-                        try {
-                           errorDetails = JSON.parse(errorText).details || JSON.parse(errorText).error;
-                        } catch(e) {
-                           errorDetails = errorText;
-                        }
-                        throw new Error(`Üleslaadimise loa saamine ebaõnnestus: ${errorDetails}`);
-                    }
-                    
-                    const { signedUrl, fileUri } = await proxyResponse.json();
-                    uploadedFileUri = fileUri; // Salvesta URI hilisemaks kasutamiseks
-                    
-                    // 2. Lae fail otse Google'isse
-                    showStatus(`Laen faili üles otse Google'isse...`, 'info');
-                    updateProgress(25, true);
+    // 1. Küsi luba üleslaadimiseks
+    showStatus(`Küsin üleslaadimise luba suurele failile...`, 'info');
+    updateProgress(10, true);
 
-                    const uploadResponse = await fetch(signedUrl, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': selectedFile.type || 'audio/m4a' },
-                        body: selectedFile
-                    });
+    const proxyResponse = await fetch('/.netlify/functions/upload-proxy-background', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            fileName: selectedFile.name,
+            fileType: selectedFile.type || 'audio/m4a'
+        })
+    });
 
-                    if (!uploadResponse.ok) {
-                        const errorText = await uploadResponse.text();
-                        throw new Error(`Faili otsene üleslaadimine Google'isse ebaõnnestus: ${errorText}`);
-                    }
+    if (!proxyResponse.ok) {
+        const errorText = await proxyResponse.text();
+        let errorDetails;
+        try {
+           errorDetails = JSON.parse(errorText).details || JSON.parse(errorText).error;
+        } catch(e) {
+           errorDetails = errorText;
+        }
+        throw new Error(`Üleslaadimise loa saamine ebaõnnestus: ${errorDetails}`);
+    }
 
-                    audioPart = {
-                        file_data: {
-                            mime_type: selectedFile.type || 'audio/m4a',
-                            file_uri: uploadedFileUri
-                        }
-                    };
-    
-                    showStatus('Fail üles laetud, alustan transkribeerimist...', 'info');
-                    updateProgress(40, false);
+    const { signedUrl, fileUri } = await proxyResponse.json();
+    uploadedFileUri = fileUri; // Salvesta URI hilisemaks kasutamiseks
 
-                } else {
+    // 2. Lae fail otse Google'isse
+    showStatus(`Laen faili üles otse Google'isse...`, 'info');
+    updateProgress(25, true);
+
+    const uploadResponse = await fetch(signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': selectedFile.type || 'audio/m4a' },
+        body: selectedFile
+    });
+
+    if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        throw new Error(`Faili otsene üleslaadimine Google'isse ebaõnnestus: ${errorText}`);
+    }
+
+    audioPart = {
+        file_data: {
+            mime_type: selectedFile.type || 'audio/m4a',
+            file_uri: uploadedFileUri
+        }
+    };
+
+    showStatus('Fail üles laetud, alustan transkribeerimist...', 'info');
+    updateProgress(40, false);
+}
+
+                 else {
                     // --- VANA LOGIKA VÄIKESTE FAILIDE JAOKS (JÄÄB SAMAKS) ---
                     showStatus('Konvertin audiofaili...', 'info');
                     updateProgress(10);
