@@ -417,6 +417,26 @@
             font-weight: 600;
             color: #2e7d32;
         }
+
+        .quality-badge {
+            background: #f3e8ff;
+            border: 1px solid #9c27b0;
+            color: #6a1b9a;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .quality-badge svg {
+            width: 20px;
+            height: 20px;
+        }
     </style>
 </head>
 <body>
@@ -424,7 +444,15 @@
         <h1>🎙️ Gemini 2.5 Flash Audio Transkribeerija</h1>
         
         <div class="model-info">
-            💎 Kasutab uusimat Gemini 2.5 Flash mudelit parima täpsuse tagamiseks
+            💎 Kasutab uusimat Gemini 2.5 Flash mudelit maksimaalse thinking budget'iga
+        </div>
+
+        <div class="quality-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 11l3 3L22 4"></path>
+                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"></path>
+            </svg>
+            <span>Kvaliteedirežiim: mudel kasutab maksimaalset arutlusaega parima tulemuse saavutamiseks</span>
         </div>
         
         <div class="info-box">
@@ -433,10 +461,10 @@
             <br><br>
             ✨ <strong>Võimalused:</strong> 
             <ul style="margin: 5px 0 0 20px; font-size: 14px;">
+                <li>Maksimaalne thinking budget (24,576 tokenit) parima kvaliteedi tagamiseks</li>
                 <li>Toetab pikki audiofaile (automaatne tükeldamine)</li>
                 <li>Mitme kõneleja eristamine (kuni 8 kõnelejat)</li>
                 <li>Teksti automaatne puhastamine loetavuse parandamiseks</li>
-                <li>Kiire režiim lühemate failide jaoks</li>
                 <li>Kõnelejate statistika</li>
                 <li>Mitmekeelne tugi</li>
             </ul>
@@ -490,13 +518,6 @@
                         <option value="7">7 kõnelejat</option>
                         <option value="8">8 kõnelejat</option>
                     </select>
-                </div>
-
-                <div class="input-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="fastMode" name="fastMode">
-                        <span>Kasuta kiiret režiimi (lühematele failidele)</span>
-                    </label>
                 </div>
 
                 <div class="input-group">
@@ -613,7 +634,7 @@
         }
 
         async function cleanTranscription(transcriptionData, apiKey, language) {
-            showStatus('Puhastan teksti loetavuse parandamiseks...', 'info');
+            showStatus('Puhastan teksti loetavuse parandamiseks (maksimaalne thinking)...', 'info');
             updateProgress(95);
             
             // Konverdi transkriptsioon tekstiks
@@ -666,6 +687,10 @@ ${transcriptionText}`;
                         topK: 1,
                         topP: 0.8,
                         maxOutputTokens: 32000,
+                    },
+                    // Maksimaalne thinking budget puhastamiseks
+                    thinkingConfig: {
+                        thinkingBudget: 24576
                     }
                 };
 
@@ -735,7 +760,7 @@ ${transcriptionText}`;
                 const fileSizeMB = selectedFile.size / (1024 * 1024);
                 const needsChunking = fileSizeMB > 10; // Üle 10MB failid
                 
-                showStatus('Saadan päringu Gemini 2.5 Flash API-le...', 'info');
+                showStatus('Saadan päringu Gemini 2.5 Flash API-le (maksimaalne thinking)...', 'info');
                 updateProgress(30);
                 
                 // Keele juhised
@@ -816,14 +841,13 @@ Key Instructions:
                         temperature: 0.1,
                         topK: 1,
                         topP: 0.8,
-                        maxOutputTokens: needsChunking ? 1000000 : 32000, // Suurem limiit pikematele failidele
+                        maxOutputTokens: needsChunking ? 1000000 : 32000,
+                    },
+                    // Maksimaalne thinking budget transkribeerimiseks
+                    thinkingConfig: {
+                        thinkingBudget: 24576
                     }
                 };
-
-                // Lisa thinking config kui kasutaja on valinud kiire režiimi
-                if (document.getElementById('fastMode').checked) {
-                    requestBody.thinkingConfig = { thinkingBudget: 0 };
-                }
                 
                 updateProgress(50);
                 
