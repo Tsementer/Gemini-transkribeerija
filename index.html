@@ -509,7 +509,29 @@
         </div>
     </div>
 
+    <div style="margin-top: 30px; padding: 20px; border: 2px dashed red; border-radius: 10px; text-align: center;">
+        <h2>Diagnostika</h2>
+        <p style="margin-bottom: 15px;">Vajuta seda nuppu, et kontrollida serveri seadistust.</p>
+        <button id="debugBtn" style="padding: 10px 20px;">Käivita Diagnostika</button>
+        <pre id="debugResult" style="margin-top: 15px; text-align: left; background: #f0f0f0; padding: 10px; border-radius: 5px;"></pre>
+    </div>
+
     <script>
+        // Diagnostika funktsioon
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('debugBtn').addEventListener('click', async () => {
+                const resultBox = document.getElementById('debugResult');
+                resultBox.textContent = 'Kontrollin...';
+                try {
+                    const response = await fetch('/.netlify/functions/debug-env');
+                    const data = await response.json();
+                    resultBox.textContent = JSON.stringify(data, null, 2);
+                } catch (error) {
+                    resultBox.textContent = `Viga diagnostika käivitamisel: ${error.message}`;
+                }
+            });
+        });
+
         let selectedFile = null;
         let currentTranscription = null;
         let originalTranscription = null;
