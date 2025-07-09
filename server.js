@@ -5,79 +5,122 @@ const cors = require('cors');
 
 const app = express();
 app.use(cors());
-// Suurendame päringu keha limiiti, et mahutada ka suuri transkriptsioone
+// Suurendame limiiti, et mahutada ka suuri transkriptsioone ümbertöötlemisel
 app.use(express.json({ limit: '10mb' }));
 
-// --- ABIFUNKTSIOONID (KÕNELEJATE ÜHENDAMINE JA TEKSTI PUHASTAMINE) ---
-
-function parseTime(timeStr) {
-    if (!timeStr) return 0;
-    const parts = timeStr.split(':').map(Number);
-    if (parts.length === 2) return parts[0] * 60 + parts[1];
-    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-    return 0;
-}
-
-function mergeSpeakerSegments(transcriptionData, mergeThreshold = 3) {
-    if (!transcriptionData.segments || transcriptionData.segments.length === 0 || mergeThreshold <= 0) {
-        return transcriptionData;
-    }
-    
-    const mergedSegments = [];
-    let currentSegment = { ...transcriptionData.segments[0] };
-    
-    for (let i = 1; i < transcriptionData.segments.length; i++) {
-        const segment = transcriptionData.segments[i];
-        const prevEnd = parseTime(currentSegment.end);
-        const currStart = parseTime(segment.start);
-        
-        if (segment.speaker === currentSegment.speaker && (currStart - prevEnd) < mergeThreshold) {
-            currentSegment.text += ' ' + segment.text;
-            currentSegment.end = segment.end;
-        } else {
-            mergedSegments.push(currentSegment);
-            currentSegment = { ...segment };
-        }
-    }
-    mergedSegments.push(currentSegment);
-    
-    return { ...transcriptionData, segments: mergedSegments };
-}
-
-async function cleanTranscription(transcriptionData, cleaningLevel, language) {
+// --- 1. ETAPP: INTELLIGENTNE ESIMENE TRANSKRIPTSIOON ---
+async function intelligentTranscription(fileUri, mimeType, language, maxSpeakers) {
     const vertexAI = new VertexAI({ project: process.env.GCLOUD_PROJECT, location: 'europe-north1' });
     const model = vertexAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const audioPart = { file_data: { mime_type: mimeType, file_uri: fileUri } };
 
-    const cleaningLevels = {
-        light: "Minimal edits: Remove only 'uh', 'um', 'ee'. Fix severe stutters.",
-        moderate: "Moderate cleaning: Remove all filler words, repetitions, and false starts. Correct basic grammar.",
-        aggressive: "Aggressive editing: Rewrite sentences for natural flow. Combine related thoughts. Make it smooth and pleasant to read, but preserve the core ideas.",
-        editorial: "Publication-ready prose: Transform speech into a polished article. Restructure passages for clarity and impact. Elevate the language significantly."
-    };
+    const prompt = `
+You are a highly precise audio transcription and diarization engine. Your task is to process an audio file and return a structured JSON object.
 
-    const prompt = `You are a transcription editor. Your task is to clean and refine the following JSON transcription data.
-- Language: ${language}
-- Cleaning Level: ${cleaningLevel}. Instruction: "${cleaningLevels[cleaningLevel]}"
-- UNIVERSAL RULES:
-  - NEVER change the meaning or intent.
-  - Keep all speaker labels (Speaker 1, etc.) and timestamps EXACTLY as they are.
-  - Maintain the exact same JSON structure.
-  - For unclear audio, use *[unclear]* notation.
-- Return ONLY the cleaned JSON object.
+### Core Task:
+1.  **Transcribe Accurately:** Transcribe the entire audio file from start to finish.
+2.  **Identify Speakers:** Identify each unique speaker and label them sequentially (Speaker 1, Speaker 2, etc.). Use '${maxSpeakers === 'auto' ? 'auto-detection' : `a maximum of ${maxSpeakers}`}' for speaker count.
+3.  **Provide Timestamps:** Assign accurate start and end timestamps in H:MM:SS format for every segment.
+4.  **Detect Language:** Identify the primary language of the conversation.
+5.  **Calculate Duration:** Determine the total duration of the audio.
 
-Input transcription:
-${JSON.stringify(transcriptionData, null, 2)}`;
+### Output Specification:
+- You MUST return ONLY a valid JSON object. Do not include any text or markdown before or after the JSON.
+- The JSON object must have a 'segments' array and a 'summary' object.
+- The 'summary' object must contain 'total_speakers' (number), 'duration' (string, e.g., "15:32"), and 'language' (string, BCP-47 code, e.g., "et-EE").
+
+### Language for Transcription:
+- The user has requested transcription in: **${language === 'auto' ? 'auto-detect the language' : language}**.
+
+Process the audio and provide the structured JSON output.`;
 
     const request = {
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        contents: [{ role: 'user', parts: [{ text: prompt }, audioPart] }],
         generationConfig: { responseMimeType: "application/json" }
     };
-    
-    const resp = await model.generateContent(request);
-    let cleanedText = resp.response.candidates[0].content.parts[0].text;
-    cleanedText = cleanedText.replace(/```json\n/g, '').replace(/\n```/g, '');
 
-    return JSON.parse(cleanedText);
+    const resp = await model.generateContent(request);
+    let responseText = resp.response.candidates[0].content.parts[0].text;
+    responseText = responseText.replace(/```json\n/g, '').replace(/\n```/g, '');
+    return JSON.parse(responseText);
+}
+
+// --- 2. ETAPP: TÄIUSTATUD PUHASTAMINE JA ÜMBERTÖÖTLEMINE ---
+async function advancedCleaningAndReprocessing(transcriptionData, { shouldClean, cleaningLevel, mergeThreshold, language }) {
+    let processedData = JSON.parse(JSON.stringify(transcriptionData)); // Loo koopia, et originaal säiliks
+
+    // A. Segmentide ühendamine (toimub alati enne puhastamist)
+    if (mergeThreshold > 0) {
+        if (!processedData.segments || processedData.segments.length === 0) {
+            // Jäta vahele, kui segmente pole
+        } else {
+            const mergedSegments = [];
+            let currentSegment = { ...processedData.segments[0] };
+            for (let i = 1; i < processedData.segments.length; i++) {
+                const segment = processedData.segments[i];
+                const parseTime = (str) => str ? str.split(':').reverse().reduce((acc, val, i) => acc + parseInt(val) * Math.pow(60, i), 0) : 0;
+                if (segment.speaker === currentSegment.speaker && (parseTime(segment.start) - parseTime(currentSegment.end)) < mergeThreshold) {
+                    currentSegment.text += ' ' + segment.text;
+                    currentSegment.end = segment.end;
+                } else {
+                    mergedSegments.push(currentSegment);
+                    currentSegment = { ...segment };
+                }
+            }
+            mergedSegments.push(currentSegment);
+            processedData.segments = mergedSegments;
+        }
+    }
+
+    // B. Teksti puhastamine (kui kasutaja seda soovis)
+    if (shouldClean) {
+        const vertexAI = new VertexAI({ project: process.env.GCLOUD_PROJECT, location: 'europe-north1' });
+        const model = vertexAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+        let languageSpecificRules = '';
+        if (language === 'et') {
+            languageSpecificRules = `
+### Estonian-Specific Rules:
+- **Fillers:** Aggressively remove: "nii-öelda", "eks ole", "ütleme", "noh", "ee", "ää", "mm".
+- **Grammar:** Correct common grammatical errors and compound words.`;
+        }
+
+        const cleaningLevels = {
+            light: `**Level: Light.** Goal: Minimal edits. Actions: Remove only obvious audible fillers (uh, um, ee). Correct severe stutters. Do not rephrase.`,
+            moderate: `**Level: Moderate.** Goal: Improve readability. Actions: Remove all filler words. Fix repetitions and false starts. Correct basic grammar.`,
+            aggressive: `**Level: Aggressive.** Goal: Create clean, readable text. Actions: Remove all redundancies. Restructure sentences for natural flow. Fix all grammar. The goal is readability.`,
+            editorial: `**Level: Editor.** Goal: Produce publication-ready prose. Actions: Heavy edit. Rephrase sentences and restructure entire passages for maximum clarity and impact. Elevate the language. The result should read like a polished article.`
+        };
+
+        const cleaningPrompt = `You are a professional transcription editor. Your task is to refine the provided JSON data according to the specified level.
+
+1.  **Adhere to the Cleaning Level:**
+    ${cleaningLevels[cleaningLevel]}
+
+2.  **Apply Language-Specific Rules:**
+    ${languageSpecificRules || 'Apply general best practices for the detected language.'}
+
+3.  **Mandatory Universal Rules:**
+    - **Preserve Meaning:** Do not change the core meaning or any factual information.
+    - **Maintain Structure:** The output MUST be only the JSON object, identical in structure to the input.
+    - **Keep Timestamps & Speakers:** Speaker labels and their timestamps ("start", "end") must remain completely untouched.
+
+### Input Data:
+${JSON.stringify(processedData, null, 2)}
+
+### Output (JSON only):`;
+
+        const request = {
+            contents: [{ role: 'user', parts: [{ text: cleaningPrompt }] }],
+            generationConfig: { responseMimeType: "application/json" }
+        };
+        const resp = await model.generateContent(request);
+        let cleanedText = resp.response.candidates[0].content.parts[0].text;
+        cleanedText = cleanedText.replace(/```json\n/g, '').replace(/\n```/g, '');
+        processedData = JSON.parse(cleanedText);
+    }
+
+    return processedData;
 }
 
 
@@ -88,7 +131,6 @@ app.post('/generate-upload-url', async (req, res) => {
     try {
         const storage = new Storage();
         const { fileName, fileType } = req.body;
-        // ... (see kood jääb täpselt samaks, mis varem)
         const BUCKET_NAME = 'carl_transkribeerija_failid_2025';
         const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_').substring(0, 100);
         const uniqueFileName = `user-uploads/${new Date().getTime()}-${sanitizedFileName}`;
@@ -105,36 +147,18 @@ app.post('/generate-upload-url', async (req, res) => {
     }
 });
 
-// Transkribeerimine (uuendatud)
+// Transkribeerimise põhiprotsess
 app.post('/transcribe-with-vertex', async (req, res) => {
     try {
-        const vertexAI = new VertexAI({ project: process.env.GCLOUD_PROJECT, location: 'europe-north1' });
-        const { fileUri, mimeType, language, maxSpeakers, shouldClean, cleaningLevel, mergeThreshold } = req.body;
+        const { fileUri, mimeType, language, maxSpeakers, ...processingOptions } = req.body;
 
-        const generativeModel = vertexAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-        const audioPart = { file_data: { mime_type: mimeType, file_uri: fileUri } };
-        
-        const promptText = `Your task is to transcribe the entire audio file, accurately identify each speaker (Speaker 1, Speaker 2, etc.), and provide timestamps in H:MM:SS format. Output ONLY a valid JSON object with a "segments" array and a "summary" object containing "total_speakers", "duration", and "language". The language should be the BCP-47 code. Language to transcribe in: ${language}. Max speakers to identify: ${maxSpeakers === 'auto' ? 'auto-detect' : maxSpeakers}.`;
+        // 1. ETAPP: Intelligentne esmane transkriptsioon
+        const rawTranscription = await intelligentTranscription(fileUri, mimeType, language, maxSpeakers);
 
-        const request = {
-            contents: [{ role: 'user', parts: [{ text: promptText }, audioPart] }],
-            generationConfig: { responseMimeType: "application/json" }
-        };
+        // 2. ETAPP: Täiustatud puhastamine ja ümbertöötlemine
+        const finalResult = await advancedCleaningAndReprocessing(rawTranscription, processingOptions);
 
-        const resp = await generativeModel.generateContent(request);
-        let responseText = resp.response.candidates[0].content.parts[0].text;
-        responseText = responseText.replace(/```json\n/g, '').replace(/\n```/g, '');
-        let transcriptionResult = JSON.parse(responseText);
-
-        // Töötle tulemusi vastavalt kasutaja valikutele
-        if (shouldClean) {
-            transcriptionResult = await cleanTranscription(transcriptionResult, cleaningLevel, language);
-        }
-        if (mergeThreshold > 0) {
-            transcriptionResult = mergeSpeakerSegments(transcriptionResult, mergeThreshold);
-        }
-
-        res.status(200).json(transcriptionResult);
+        res.status(200).json(finalResult);
 
     } catch (error) {
         console.error('💥 Transcription Error:', error);
@@ -142,31 +166,22 @@ app.post('/transcribe-with-vertex', async (req, res) => {
     }
 });
 
-// UUS: Tulemuste ümbertöötlemine
+// Tulemuste ümbertöötlemine
 app.post('/reprocess-transcription', async (req, res) => {
     try {
-        let { transcriptionData, shouldClean, cleaningLevel, mergeThreshold, language } = req.body;
-
+        const { transcriptionData, ...processingOptions } = req.body;
         if (!transcriptionData) {
             return res.status(400).json({ error: 'Missing transcription data' });
         }
-
-        if (shouldClean) {
-            transcriptionData = await cleanTranscription(transcriptionData, cleaningLevel, language);
-        }
-        if (mergeThreshold > 0) {
-            transcriptionData = mergeSpeakerSegments(transcriptionData, mergeThreshold);
-        }
         
-        res.status(200).json(transcriptionData);
+        const finalResult = await advancedCleaningAndReprocessing(transcriptionData, processingOptions);
+        res.status(200).json(finalResult);
 
-    } catch (error)
-    {
+    } catch (error) {
         console.error('💥 Reprocessing Error:', error);
         res.status(500).json({ error: 'Failed to reprocess results', details: error.message });
     }
 });
-
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
