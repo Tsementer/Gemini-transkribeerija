@@ -536,11 +536,12 @@
         </div>
         
         <div class="info-box" style="background: #e0f2fe; border-color: #0284c7; color: #075985;">
-            💡 <strong>Suurte failide tugi:</strong> See rakendus toetab nüüd ka väga pikki audiofaile!
+            💡 <strong>Nutikas failikäsitlus:</strong> Optimaalne meetod faili suuruse järgi!
             <ul style="margin: 5px 0 0 20px; font-size: 14px;">
-                <li><strong>Alla 10 MB:</strong> Kiire töötlemine otse brauseris</li>
-                <li><strong>Üle 10 MB:</strong> Automaatne üleslaadimine Google'i serverisse paremate tulemuste jaoks</li>
-                <li><strong>Maksimaalne suurus:</strong> Kuni mitu tundi audiomaterjali (soovitatav alla 200 MB)</li>
+                <li><strong>Alla 10 MB:</strong> ⚡ Kiire base64 töötlemine otse brauseris</li>
+                <li><strong>10-50 MB:</strong> 📤 Gemini Files API (keskmine kiirus)</li>
+                <li><strong>Üle 50 MB:</strong> 🏭 Google Cloud Storage (kõige usaldusväärsem)</li>
+                <li><strong>Soovitus:</strong> Alla 100 MB parimate tulemuste jaoks</li>
             </ul>
         </div>
 
@@ -686,7 +687,7 @@
             document.getElementById('cleaningOptions').style.display = e.target.checked ? 'block' : 'none';
         });
 
-        // Faili info uuendamine
+        // Faili info uuendamine - UUENDATUD HÜBRIID-LOOGIKAGA
         function updateFileInfo(file) {
             if (!file) return;
             
@@ -696,8 +697,13 @@
             
             document.getElementById('fileSize').textContent = `${fileSizeMB.toFixed(1)} MB`;
             
-            if (fileSizeMB > 10) {
-                document.getElementById('uploadMethod').innerHTML = '<span class="method-badge" style="background-image: linear-gradient(135deg, #f59e0b, #dc2626)">📤 Google File API (Direct)</span>';
+            // UUENDATUD: Kolme taseme loogika
+            if (fileSizeMB > 50) {
+                document.getElementById('uploadMethod').innerHTML = '<span class="method-badge" style="background: linear-gradient(135deg, #dc2626, #991b1b)">🏭 Google Cloud Storage</span>';
+                fileLabel.classList.add('large-file');
+                fileLabel.classList.remove('small-file');
+            } else if (fileSizeMB > 10) {
+                document.getElementById('uploadMethod').innerHTML = '<span class="method-badge" style="background: linear-gradient(135deg, #f59e0b, #dc2626)">📤 Gemini Files API</span>';
                 fileLabel.classList.add('large-file');
                 fileLabel.classList.remove('small-file');
             } else {
@@ -713,11 +719,18 @@
             else if (fileSizeMB < 100) estimatedMinutes = '5-10 minutit';
             else estimatedMinutes = '10+ minutit';
             
+            // LISA HOIATUS suurte failide jaoks
+            if (fileSizeMB > 100) {
+                estimatedMinutes += ' ⚠️ VÄGA SUUR FAIL';
+            }
+            
             document.getElementById('estimatedTime').textContent = estimatedMinutes;
             fileInfoContainer.classList.add('show');
             
             let labelHtml = `✅ ${file.name}`;
-            if (fileSizeMB > 10) {
+            if (fileSizeMB > 50) {
+                labelHtml += `<span class="file-size-badge" style="background: #dc2626;">${fileSizeMB.toFixed(1)} MB</span>`;
+            } else if (fileSizeMB > 10) {
                 labelHtml += `<span class="file-size-badge">${fileSizeMB.toFixed(1)} MB</span>`;
             } else {
                 labelHtml += `<span class="file-size-badge" style="background: #10b981;">${fileSizeMB.toFixed(1)} MB</span>`;
@@ -1032,7 +1045,7 @@ ${transcriptionText}`;
             }
         }
 
-        // Peamine transkribeerimise funktsioon
+        // Peamine transkribeerimise funktsioon - UUENDATUD HÜBRIID-LOOGIKAGA
         async function transcribeAudio() {
             const apiKey = document.getElementById('apiKey').value.trim();
             const language = document.getElementById('language').value;
@@ -1058,48 +1071,101 @@ ${transcriptionText}`;
 
             try {
                 const fileSizeMB = selectedFile.size / (1024 * 1024);
-                const needsFileUpload = fileSizeMB > 10;
-                
+
+                // HÜBRIID LOOGIKA: kolm tasandit
+                const needsCloudStorage = fileSizeMB > 50;
+                const needsGeminiFiles = fileSizeMB > 10 && fileSizeMB <= 50;
+
+                // Lisa hoiatus väga suurte failide jaoks
+                if (fileSizeMB > 100) {
+                    showStatus('⚠️ Väga suur fail! Töötlemine võib kesta 10+ minutit või ebaõnnestuda.', 'info');
+                }
+
                 let audioPart;
-                
-                if (needsFileUpload) {
-    // UUS: Kasuta Gemini Files API'd
-    showStatus('Konvertin ja laen üles Gemini Files API-sse...', 'info');
-    updateProgress(10, true);
-    
-    const base64Audio = await fileToBase64(selectedFile);
-    updateProgress(25, true);
-    
-    const uploadResponse = await fetch('/.netlify/functions/upload-to-gemini', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            fileName: selectedFile.name,
-            fileData: base64Audio,
-            mimeType: selectedFile.type || 'audio/mp3'
-        })
-    });
 
-    if (!uploadResponse.ok) {
-        const error = await uploadResponse.json();
-        throw new Error(error.error || 'File upload failed');
-    }
+                if (needsCloudStorage) {
+                    // SUURIMAD FAILID (>50MB): Google Cloud Storage
+                    showStatus('Suur fail - laen üles Google Cloud Storage\'sse...', 'info');
+                    updateProgress(10, true);
+                    
+                    const uploadResponse = await fetch('/.netlify/functions/generate-upload-url', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            fileName: selectedFile.name,
+                            fileType: selectedFile.type || 'audio/mp3'
+                        })
+                    });
 
-    const { fileUri } = await uploadResponse.json();
-    
-    audioPart = {
-        file_data: {
-            mime_type: selectedFile.type || 'audio/mp3',
-            file_uri: fileUri  // files/xxx formaat
-        }
-    };
+                    if (!uploadResponse.ok) {
+                        const error = await uploadResponse.json();
+                        throw new Error(error.error || 'Cloud Storage upload failed');
+                    }
 
-    showStatus('Fail üles laetud, alustan transkribeerimist...', 'info');
-    updateProgress(40, false);
-} 
-                 else {
-                    // --- VANA LOGIKA VÄIKESTE FAILIDE JAOKS (JÄÄB SAMAKS) ---
-                    showStatus('Konvertin audiofaili...', 'info');
+                    const { signedUrl, fileUri } = await uploadResponse.json();
+                    uploadedFileUri = fileUri; // Salvesta kustutamiseks
+                    
+                    updateProgress(30, true);
+                    
+                    // Lae fail otse Google Cloud Storage'sse
+                    const fileUploadResponse = await fetch(signedUrl, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': selectedFile.type || 'audio/mp3' },
+                        body: selectedFile
+                    });
+
+                    if (!fileUploadResponse.ok) {
+                        throw new Error('File upload to Cloud Storage failed');
+                    }
+
+                    audioPart = {
+                        file_data: {
+                            mime_type: selectedFile.type || 'audio/mp3',
+                            file_uri: fileUri  // gs:// formaat
+                        }
+                    };
+
+                    showStatus('Fail üles laetud Cloud Storage\'sse, alustan transkribeerimist...', 'info');
+                    updateProgress(40, false);
+                    
+                } else if (needsGeminiFiles) {
+                    // KESKMINE FAILID (10-50MB): Gemini Files API
+                    showStatus('Keskmine fail - laen üles Gemini Files API-sse...', 'info');
+                    updateProgress(10, true);
+                    
+                    const base64Audio = await fileToBase64(selectedFile);
+                    updateProgress(25, true);
+                    
+                    const uploadResponse = await fetch('/.netlify/functions/upload-to-gemini', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            fileName: selectedFile.name,
+                            fileData: base64Audio,
+                            mimeType: selectedFile.type || 'audio/mp3'
+                        })
+                    });
+
+                    if (!uploadResponse.ok) {
+                        const error = await uploadResponse.json();
+                        throw new Error(error.error || 'Gemini Files upload failed');
+                    }
+
+                    const { fileUri } = await uploadResponse.json();
+                    
+                    audioPart = {
+                        file_data: {
+                            mime_type: selectedFile.type || 'audio/mp3',
+                            file_uri: fileUri  // files/xxx formaat
+                        }
+                    };
+
+                    showStatus('Fail üles laetud Gemini Files API-sse, alustan transkribeerimist...', 'info');
+                    updateProgress(40, false);
+                    
+                } else {
+                    // VÄIKESED FAILID (<10MB): Base64
+                    showStatus('Väike fail - konvertin base64 formaati...', 'info');
                     updateProgress(10);
                     const base64Audio = await fileToBase64(selectedFile);
                     audioPart = {
