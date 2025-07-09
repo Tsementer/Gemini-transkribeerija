@@ -1096,20 +1096,7 @@ ${transcriptionText}`;
 
     showStatus('Fail üles laetud, alustan transkribeerimist...', 'info');
     updateProgress(40, false);
-} else {
-    // VÄIKESTE FAILIDE JAOKS (jääb samaks)
-    showStatus('Konvertin audiofaili...', 'info');
-    updateProgress(10);
-    const base64Audio = await fileToBase64(selectedFile);
-    audioPart = {
-        inline_data: {
-            mime_type: selectedFile.type || 'audio/wav',
-            data: base64Audio
-        }
-    };
-    updateProgress(30, false);
-}
-
+} 
                  else {
                     // --- VANA LOGIKA VÄIKESTE FAILIDE JAOKS (JÄÄB SAMAKS) ---
                     showStatus('Konvertin audiofaili...', 'info');
