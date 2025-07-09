@@ -7,19 +7,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- Autentimine on nüüd automaatne! ---
-// Kui kood jookseb Cloud Run'is, kasutavad need teegid
-// automaatselt teenusele määratud teenusekonto õigusi.
-// Me ei pea enam mandaatidega tegelema.
-const storage = new Storage();
-const vertexAI = new VertexAI({ 
-    project: process.env.GCLOUD_PROJECT, 
-    location: 'europe-north1' 
-});
-
-// --- URL-i genereerimise loogika ---
+// URL-i genereerimise loogika
 app.post('/generate-upload-url', async (req, res) => {
     try {
+        // LOOME STORAGE KLIENDI ALLES SIIN, KUI SEDA VAJA LÄHEB
+        const storage = new Storage();
+        
         const { fileName, fileType } = req.body;
         if (!fileName || !fileType) {
             return res.status(400).json({ error: 'Missing fileName or fileType' });
@@ -48,23 +41,26 @@ app.post('/generate-upload-url', async (req, res) => {
     }
 });
 
-// --- Transkribeerimise loogika ---
+// Transkribeerimise loogika
 app.post('/transcribe-with-vertex', async (req, res) => {
     try {
+        // LOOME VERTEXAI KLIENDI ALLES SIIN, KUI SEDA VAJA LÄHEB
+        const vertexAI = new VertexAI({
+            project: process.env.GCLOUD_PROJECT,
+            location: 'europe-north1'
+        });
+
         const { fileUri, mimeType, language, maxSpeakers } = req.body;
         if (!fileUri || !mimeType) {
             return res.status(400).json({ error: 'Missing fileUri or mimeType' });
         }
 
-        const model = 'gemini-2.5-flash'; 
+        const model = 'gemini-2.5-flash';
         const generativeModel = vertexAI.getGenerativeModel({ model });
         
         const audioPart = { file_data: { mime_type: mimeType, file_uri: fileUri } };
         
-        let languageInstruction = (language && language !== 'auto') ? `\n- Transcribe in ${language} language.` : '';
-        let speakerInstruction = (maxSpeakers && maxSpeakers !== 'auto') ? `\n- There are exactly ${maxSpeakers} speakers.` : '';
-          
-        const promptText = `You are an expert audio transcriptionist. Your most important task is to transcribe the entire audio file, accurately identify each speaker, and provide timestamps in H:MM:SS format. Output ONLY a valid JSON object with a "segments" array.${languageInstruction}${speakerInstruction}`;
+        const promptText = `You are an expert audio transcriptionist. Your most important task is to transcribe the entire audio file, accurately identify each speaker, and provide timestamps in H:MM:SS format. Output ONLY a valid JSON object with a "segments" array.`;
 
         const request = {
             contents: [{ role: 'user', parts: [{ text: promptText }, audioPart] }],
@@ -72,10 +68,14 @@ app.post('/transcribe-with-vertex', async (req, res) => {
         };
 
         const resp = await generativeModel.generateContent(request);
-        const transcriptionResult = resp.response.candidates[0].content.parts[0].text;
         
-        // Saadame tulemuse otse tagasi
-        res.status(200).send(transcriptionResult);
+        // Google võib vastuse tagastada koodiblokis, eemaldame selle
+        let responseText = resp.response.candidates[0].content.parts[0].text;
+        responseText = responseText.replace(/```json\n/g, '').replace(/\n```/g, '');
+        
+        const transcriptionResult = JSON.parse(responseText);
+
+        res.status(200).json(transcriptionResult);
 
     } catch (error) {
         console.error('💥 Transcription Error:', error);
