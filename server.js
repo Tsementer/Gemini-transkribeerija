@@ -3,6 +3,7 @@ const { Storage } = require('@google-cloud/storage');
 const { VertexAI } = require('@google-cloud/vertexai');
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 // --- Autentimine on nüüd automaatne! ---
