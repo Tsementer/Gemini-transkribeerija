@@ -5,7 +5,7 @@ const { VertexAI } = require('@google-cloud/vertexai');
 
 // See on vajalik autentimiseks ja projekti info saamiseks
 const PROJECT_ID = process.env.GCLOUD_PROJECT;
-const LOCATION = 'us-central1'; // Või mõni muu toetatud regioon
+const LOCATION = 'europe-north1'; // Muudetud vastavaks GCS bucket'i asukohale
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
