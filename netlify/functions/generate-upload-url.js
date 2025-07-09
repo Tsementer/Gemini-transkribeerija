@@ -1,36 +1,37 @@
-// netlify/functions/generate-upload-url.js - VERSIOON, MIS LAEB MANDAADID OTSE
+// netlify/functions/generate-upload-url.js - LÕPLIK VERSIOON
 
 const { Storage } = require('@google-cloud/storage');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
-// Proovime mandaadid otse sisse lugeda
-let storage;
-try {
-    const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
-    storage = new Storage({ credentials });
-} catch (e) {
-    console.error("💥 Failed to parse or use credentials from env var:", e);
-    // Jätame storage tühjaks, et handler saaks vea tagastada
-}
-
+// See abifunktsioon kirjutab mandaadid ajutisse faili ja tagastab faili asukoha
+const setupCredentials = () => {
+  const credsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  if (!credsJson) {
+    throw new Error('GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable not set.');
+  }
+  const tempDir = os.tmpdir();
+  const filePath = path.join(tempDir, 'creds.json');
+  fs.writeFileSync(filePath, credsJson);
+  return filePath;
+};
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  // Kui mandaatide lugemine ebaõnnestus juba alguses
-  if (!storage) {
-      return { 
-          statusCode: 500, 
-          body: JSON.stringify({ error: 'Server configuration error: Could not initialize credentials.' })
-      };
-  }
-
   try {
+    // Seadistame mandaadid enne teekide kasutamist
+    const credentialsPath = setupCredentials();
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
+
+    const storage = new Storage();
     const { fileName, fileType } = JSON.parse(event.body);
 
     if (!fileName || !fileType) {
-        return { statusCode: 400, body: JSON.stringify({ error: 'Missing fileName or fileType' }) };
+      return { statusCode: 400, body: JSON.stringify({ error: 'Missing fileName or fileType' }) };
     }
 
     const BUCKET_NAME = 'carl_transkribeerija_failid_2025';
@@ -47,6 +48,9 @@ exports.handler = async function (event) {
     });
     
     const fileUri = `gs://${BUCKET_NAME}/${uniqueFileName}`;
+    
+    // Koristame ajutise faili ära
+    fs.unlinkSync(credentialsPath);
 
     return {
       statusCode: 200,
