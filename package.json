@@ -1,15 +1,16 @@
 {
-  "name": "gemini-transkribeerija-vertex",
-  "version": "3.0.0",
-  "description": "Functions for Vertex AI audio transcriber",
-  "main": "index.js",
+  "name": "gemini-transkribeerija-cloudrun",
+  "version": "1.0.0",
+  "description": "Cloud Run backend for Gemini Transcriber",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@google-cloud/storage": "^7.11.0",
-    "@google-cloud/vertexai": "^1.2.0"
+    "@google-cloud/vertexai": "^1.2.0",
+    "express": "^4.19.2"
   }
 }
