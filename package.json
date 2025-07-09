@@ -1,7 +1,7 @@
 {
-  "name": "gemini-transkribeerija-proxy",
-  "version": "2.0.0",
-  "description": "Function to generate signed URLs for Google Gemini file uploads",
+  "name": "gemini-transkribeerija-vertex",
+  "version": "3.0.0",
+  "description": "Functions for Vertex AI audio transcriber",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@google-cloud/storage": "^7.11.0"
+    "@google-cloud/storage": "^7.11.0",
+    "@google-cloud/vertexai": "^1.2.0"
   }
 }
