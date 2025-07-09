@@ -1072,14 +1072,27 @@ ${transcriptionText}`;
             try {
                 const fileSizeMB = selectedFile.size / (1024 * 1024);
 
-                // HÜBRIID LOOGIKA: kolm tasandit
-                const needsCloudStorage = fileSizeMB > 50;
-                const needsGeminiFiles = fileSizeMB > 10 && fileSizeMB <= 50;
+                // UUENDATUD LOOGIKA: Netlify Functions limiit arvestades
+                const needsCloudStorage = fileSizeMB > 20;  // MUUDETUD: 50 → 20
+                const needsGeminiFiles = fileSizeMB > 5 && fileSizeMB <= 20;  // MUUDETUD: 10-50 → 5-20
 
-                // Lisa hoiatus väga suurte failide jaoks
-                if (fileSizeMB > 100) {
-                    showStatus('⚠️ Väga suur fail! Töötlemine võib kesta 10+ minutit või ebaõnnestuda.', 'info');
-                }
+                console.log('File size analysis:', {
+                    fileSizeMB: fileSizeMB.toFixed(1),
+                    needsCloudStorage,
+                    needsGeminiFiles,
+                    estimatedBase64MB: (fileSizeMB * 1.4).toFixed(1)
+});
+
+// Lisa hoiatus suurte failide jaoks
+if (needsGeminiFiles) {
+    const estimatedBase64Size = fileSizeMB * 1.4; // Base64 on ~40% suurem
+    if (estimatedBase64Size > 5) { // 5MB Netlify turvaline limiit
+        showStatus(`⚠️ Fail liiga suur Gemini Files API jaoks (${fileSizeMB.toFixed(1)}MB → ${estimatedBase64Size.toFixed(1)}MB base64). Kasutan Google Cloud Storage meetodit...`, 'info');
+        // Sunni Cloud Storage kasutamine
+        needsCloudStorage = true;
+        needsGeminiFiles = false;
+    }
+}
 
                 let audioPart;
 
