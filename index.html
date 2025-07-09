@@ -1064,7 +1064,11 @@ ${transcriptionText}`;
                 
                 if (needsFileUpload) {
     // UUS: Kasuta Gemini Files API'd
+    showStatus('Konvertin ja laen üles Gemini Files API-sse...', 'info');
+    updateProgress(10, true);
+    
     const base64Audio = await fileToBase64(selectedFile);
+    updateProgress(25, true);
     
     const uploadResponse = await fetch('/.netlify/functions/upload-to-gemini', {
         method: 'POST',
@@ -1076,6 +1080,11 @@ ${transcriptionText}`;
         })
     });
 
+    if (!uploadResponse.ok) {
+        const error = await uploadResponse.json();
+        throw new Error(error.error || 'File upload failed');
+    }
+
     const { fileUri } = await uploadResponse.json();
     
     audioPart = {
@@ -1084,10 +1093,21 @@ ${transcriptionText}`;
             file_uri: fileUri  // files/xxx formaat
         }
     };
-}
 
     showStatus('Fail üles laetud, alustan transkribeerimist...', 'info');
     updateProgress(40, false);
+} else {
+    // VÄIKESTE FAILIDE JAOKS (jääb samaks)
+    showStatus('Konvertin audiofaili...', 'info');
+    updateProgress(10);
+    const base64Audio = await fileToBase64(selectedFile);
+    audioPart = {
+        inline_data: {
+            mime_type: selectedFile.type || 'audio/wav',
+            data: base64Audio
+        }
+    };
+    updateProgress(30, false);
 }
 
                  else {
