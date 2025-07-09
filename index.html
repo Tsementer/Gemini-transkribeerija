@@ -517,28 +517,23 @@
     </div>
 
     <script>
+        let selectedFile = null;
+        // --- UUENDUS: Lisasime siia teie uue Cloud Run teenuse aadressi ---
+        const BACKEND_URL = 'https://gemini-transkribeerija-714313920196.europe-north1.run.app';
+
         // Diagnostika funktsioon
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('debugBtn').addEventListener('click', async () => {
                 const resultBox = document.getElementById('debugResult');
                 resultBox.textContent = 'Kontrollin...';
                 try {
-                    const response = await fetch('/.netlify/functions/debug-env');
+                    const response = await fetch(`${BACKEND_URL}/debug-env`);
                     const data = await response.json();
                     resultBox.textContent = JSON.stringify(data, null, 2);
                 } catch (error) {
                     resultBox.textContent = `Viga diagnostika käivitamisel: ${error.message}`;
                 }
             });
-        });
-
-        let selectedFile = null;
-        let currentTranscription = null;
-        let originalTranscription = null;
-
-        // Näita/peida puhastamise valikud
-        document.getElementById('cleanText').addEventListener('change', function(e) {
-            document.getElementById('cleaningOptions').style.display = e.target.checked ? 'block' : 'none';
         });
 
         // Faili valimine
@@ -549,44 +544,6 @@
                 document.getElementById('fileLabel').textContent = `✅ ${file.name}`;
             }
         });
-
-        // Drag and drop
-        const fileLabel = document.getElementById('fileLabel');
-        fileLabel.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            fileLabel.style.background = '#e0e0e0';
-        });
-
-        fileLabel.addEventListener('dragleave', () => {
-            fileLabel.style.background = '';
-        });
-
-        fileLabel.addEventListener('drop', (e) => {
-            e.preventDefault();
-            fileLabel.style.background = '';
-            
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('audio/')) {
-                selectedFile = file;
-                document.getElementById('audioFile').files = e.dataTransfer.files;
-                document.getElementById('fileLabel').textContent = `✅ ${file.name}`;
-            } else {
-                showStatus('Palun valige audiofail!', 'error');
-            }
-        });
-
-        // Täpsemad seaded
-        function toggleAdvanced() {
-            const content = document.getElementById('advancedContent');
-            const arrow = document.getElementById('advancedArrow');
-            if (content.classList.contains('show')) {
-                content.classList.remove('show');
-                arrow.textContent = '▼';
-            } else {
-                content.classList.add('show');
-                arrow.textContent = '▲';
-            }
-        }
 
         // Staatuse näitamine
         function showStatus(message, type) {
@@ -609,63 +566,7 @@
             document.getElementById('progressBar').style.display = 'none';
         }
 
-        // Abifunktsioon aja parsimiseks sekunditeks
-        function parseTime(timeStr) {
-            const parts = timeStr.split(':').map(Number);
-            if (parts.length === 2) {
-                // M:SS või MM:SS
-                return parts[0] * 60 + parts[1];
-            } else if (parts.length === 3) {
-                // H:MM:SS
-                return parts[0] * 3600 + parts[1] * 60 + parts[2];
-            }
-            return 0;
-        }
-
-        // Kõnelejate segmentide ühendamine
-        function mergeSpeakerSegments(transcriptionData, mergeThreshold = 3) {
-            if (!transcriptionData.segments || transcriptionData.segments.length === 0) {
-                return transcriptionData;
-            }
-            
-            const mergedSegments = [];
-            let currentSegment = { ...transcriptionData.segments[0] };
-            
-            for (let i = 1; i < transcriptionData.segments.length; i++) {
-                const segment = transcriptionData.segments[i];
-                const prevEnd = parseTime(currentSegment.end);
-                const currStart = parseTime(segment.start);
-                const gap = currStart - prevEnd;
-                
-                // Kui sama kõneleja ja väike vahe (alla määratud sekundi)
-                if (segment.speaker === currentSegment.speaker && gap < mergeThreshold) {
-                    // Ühenda tekstid
-                    currentSegment.text += ' ' + segment.text;
-                    currentSegment.end = segment.end;
-                } else {
-                    // Salvesta eelmine segment ja alusta uut
-                    mergedSegments.push(currentSegment);
-                    currentSegment = { ...segment };
-                }
-            }
-            
-            // Lisa viimane segment
-            mergedSegments.push(currentSegment);
-            
-            // Uuenda summary statistikat
-            const uniqueSpeakers = new Set(mergedSegments.map(s => s.speaker));
-            
-            return {
-                ...transcriptionData,
-                segments: mergedSegments,
-                summary: {
-                    ...transcriptionData.summary,
-                    total_speakers: uniqueSpeakers.size
-                }
-            };
-        }
-
-        // Peamine transkribeerimise funktsioon - TÄIELIKULT UUENDATUD
+        // Peamine transkribeerimise funktsioon
         async function transcribeAudio() {
             if (!selectedFile) {
                 showStatus('Palun valige audiofail!', 'error');
@@ -678,11 +579,12 @@
             document.getElementById('resultSection').style.display = 'none';
 
             try {
-                // 1. SAMM: Hangi turvaline üleslaadimise URL meie enda serverilt
+                // 1. SAMM: Hangi turvaline üleslaadimise URL
                 showStatus('Valmistan ette turvalist üleslaadimist...', 'info');
                 updateProgress(10, 'Hangi URL...');
 
-                const urlResponse = await fetch('/.netlify/functions/generate-upload-url', {
+                // --- UUENDUS: Kasutame uut BACKEND_URL muutujat ---
+                const urlResponse = await fetch(`${BACKEND_URL}/generate-upload-url`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -712,11 +614,12 @@
                     throw new Error('Faili üleslaadimine Google Cloud Storage\'isse ebaõnnestus');
                 }
                 
-                // 3. SAMM: Käivita transkribeerimine meie enda serveri kaudu
+                // 3. SAMM: Käivita transkribeerimine
                 showStatus('Fail üles laetud, alustan transkribeerimist...', 'info');
                 updateProgress(60, 'Töötlen...');
 
-                const transcribeResponse = await fetch('/.netlify/functions/transcribe-with-vertex', {
+                // --- UUENDUS: Kasutame uut BACKEND_URL muutujat ---
+                const transcribeResponse = await fetch(`${BACKEND_URL}/transcribe-with-vertex`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -730,33 +633,13 @@
                 updateProgress(90, 'Peaaegu valmis...');
 
                 if (!transcribeResponse.ok) {
-                    const error = await transcribeResponse.json();
-                    throw new Error(error.error || 'Transkribeerimine ebaõnnestus');
+                    const errorData = await transcribeResponse.json();
+                    throw new Error(errorData.error || 'Transkribeerimine ebaõnnestus');
                 }
 
                 const transcriptionData = await transcribeResponse.json();
                 
-                // Salvesta originaal
-                originalTranscription = JSON.parse(JSON.stringify(transcriptionData));
-                
-                // Rakenda töötlemist
-                let processedData = transcriptionData;
-                
-                // Teksti puhastamine, kui valitud
-                const shouldClean = document.getElementById('cleanText').checked;
-                if (shouldClean) {
-                    showStatus('Puhastan teksti...', 'info');
-                    updateProgress(95, 'Puhastan...');
-                    processedData = await cleanTranscription(processedData);
-                }
-                
-                // Kõnelejate ühendamine
-                const mergeThreshold = parseInt(document.getElementById('mergeSpeakers').value);
-                if (mergeThreshold > 0) {
-                    processedData = mergeSpeakerSegments(processedData, mergeThreshold);
-                }
-                
-                displayResult(processedData);
+                displayResult(transcriptionData);
                 showStatus('Transkribeerimine õnnestus!', 'success');
                 updateProgress(100, 'Valmis!');
                 setTimeout(hideProgress, 2000);
@@ -771,223 +654,29 @@
             }
         }
 
-        // Täiustatud teksti puhastamine (lihtsustatud versioon)
-        async function cleanTranscription(transcriptionData) {
-            const cleaningLevel = document.getElementById('cleaningLevel').value;
-            const language = document.getElementById('language').value;
-            
-            try {
-                const cleanResponse = await fetch('/.netlify/functions/clean-transcription', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        transcriptionData: transcriptionData,
-                        cleaningLevel: cleaningLevel,
-                        language: language
-                    })
-                });
-
-                if (!cleanResponse.ok) {
-                    throw new Error('Teksti puhastamine ebaõnnestus');
-                }
-
-                const cleanedData = await cleanResponse.json();
-                return cleanedData;
-            } catch (error) {
-                console.error('Puhastamine ebaõnnestus:', error);
-                showStatus('Puhastamine ebaõnnestus, kasutan algset teksti', 'error');
-                return transcriptionData; // Tagasta algne, kui puhastamine ebaõnnestus
-            }
-        }
-
         // Tulemuste kuvamine
         function displayResult(transcriptionData) {
-            currentTranscription = transcriptionData;
             const resultBox = document.getElementById('resultBox');
             resultBox.innerHTML = '';
             
-            if (document.getElementById('showStats').checked && originalTranscription?.summary) {
-                displayStats(originalTranscription);
+            if (transcriptionData.segments && Array.isArray(transcriptionData.segments)) {
+                 transcriptionData.segments.forEach(segment => {
+                    const segmentDiv = document.createElement('div');
+                    segmentDiv.style.marginBottom = '15px';
+                    segmentDiv.innerHTML = `
+                        <div style="font-weight: bold; color: #667eea;">
+                           [${segment.start} - ${segment.end}] ${segment.speaker || 'Kõneleja'}:
+                        </div>
+                        <div>${segment.text}</div>
+                    `;
+                    resultBox.appendChild(segmentDiv);
+                });
+            } else {
+                // Kuvame vea, kui oodatud "segments" välja ei leitud
+                resultBox.innerHTML = `<div style="color: red;">Viga: API vastus oli ootamatus formaadis.</div><pre>${JSON.stringify(transcriptionData, null, 2)}</pre>`;
             }
-            
-            const speakerColors = {};
-            let colorIndex = 1;
-            
-            transcriptionData.segments.forEach(segment => {
-                if (!speakerColors[segment.speaker]) {
-                    speakerColors[segment.speaker] = `speaker-${colorIndex}`;
-                    colorIndex = (colorIndex % 8) + 1;
-                }
-                const segmentDiv = document.createElement('div');
-                segmentDiv.className = 'transcript-segment';
-                segmentDiv.innerHTML = `
-                    <div class="speaker-name">
-                        <span>${segment.speaker}</span>
-                        <span class="timestamp">${segment.start} - ${segment.end}</span>
-                    </div>
-                    <div class="segment-text">${segment.text}</div>
-                `;
-                resultBox.appendChild(segmentDiv);
-            });
-            
+
             document.getElementById('resultSection').style.display = 'block';
-        }
-
-        // Statistika kuvamine
-        function displayStats(transcriptionData) {
-            const statsDiv = document.getElementById('speakerStats');
-            const speakerStats = {};
-            let totalSegments = transcriptionData.segments.length;
-            
-            transcriptionData.segments.forEach(segment => {
-                if (!speakerStats[segment.speaker]) {
-                    speakerStats[segment.speaker] = { segments: 0, words: 0 };
-                }
-                speakerStats[segment.speaker].segments++;
-                speakerStats[segment.speaker].words += segment.text.split(' ').length;
-            });
-            
-            let statsHTML = '<h3>📊 Statistika (originaali põhjal):</h3>';
-            if (transcriptionData.summary) {
-                statsHTML += `
-                    <div class="speaker-stat-item">
-                        <span>Kõnelejaid kokku:</span>
-                        <span><strong>${transcriptionData.summary.total_speakers || Object.keys(speakerStats).length}</strong></span>
-                    </div>
-                    <div class="speaker-stat-item">
-                        <span>Kestus:</span>
-                        <span><strong>${transcriptionData.summary.duration || 'N/A'}</strong></span>
-                    </div>
-                    <div class="speaker-stat-item">
-                        <span>Keel:</span>
-                        <span><strong>${transcriptionData.summary.language || 'N/A'}</strong></span>
-                    </div>
-                `;
-            }
-            statsHTML += '<div style="margin-top: 10px;"><strong>Kõnelejate aktiivsus:</strong></div>';
-            
-            Object.entries(speakerStats).forEach(([speaker, stats]) => {
-                const percentage = Math.round((stats.segments / totalSegments) * 100);
-                statsHTML += `
-                    <div class="speaker-stat-item">
-                        <span>${speaker}:</span>
-                        <span>${stats.segments} lõiku (${percentage}%), ~${stats.words} sõna</span>
-                    </div>
-                `;
-            });
-            
-            statsDiv.innerHTML = statsHTML;
-            statsDiv.style.display = 'block';
-        }
-
-        // Tulemuste ümbertöötlemine
-        async function reprocessResults() {
-            if (!originalTranscription) {
-                showStatus('Pole tulemusi, mida töödelda', 'error');
-                return;
-            }
-            
-            const shouldClean = document.getElementById('cleanText').checked;
-            
-            showStatus('Töötan tulemusi ümber...', 'info');
-            
-            try {
-                let processedData = JSON.parse(JSON.stringify(originalTranscription));
-                
-                if (shouldClean) {
-                    processedData = await cleanTranscription(processedData);
-                }
-                
-                const mergeThreshold = parseInt(document.getElementById('mergeSpeakers').value);
-                if (mergeThreshold > 0) {
-                    processedData = mergeSpeakerSegments(processedData, mergeThreshold);
-                }
-                
-                displayResult(processedData);
-                showStatus('Tulemused töödeldud uuesti!', 'success');
-            } catch (error) {
-                console.error('Ümbertöötlemine ebaõnnestus:', error);
-                showStatus('Ümbertöötlemine ebaõnnestus', 'error');
-            }
-        }
-
-        // Kopeeri lõikelauale
-        function copyToClipboard() {
-            let text = '';
-            
-            if (currentTranscription?.segments) {
-                currentTranscription.segments.forEach(segment => {
-                    text += `[${segment.start} - ${segment.end}] ${segment.speaker}:\n${segment.text}\n\n`;
-                });
-            } else if (currentTranscription?.raw) {
-                text = currentTranscription.raw;
-            }
-            
-            navigator.clipboard.writeText(text).then(() => {
-                showStatus('Tekst kopeeritud!', 'success');
-            }).catch(err => {
-                showStatus('Kopeerimine ebaõnnestus', 'error');
-            });
-        }
-
-        // Lae alla TXT
-        function downloadTranscript() {
-            let text = '';
-            let filename = 'transkriptsioon.txt';
-            
-            if (currentTranscription?.segments) {
-                text = `Transkriptsioon\n`;
-                text += `Kuupäev: ${new Date().toLocaleString('et-EE')}\n`;
-                text += `${selectedFile ? 'Fail: ' + selectedFile.name : ''}\n`;
-                
-                if (currentTranscription.summary) {
-                    text += `Kõnelejaid: ${currentTranscription.summary.total_speakers || 'N/A'}\n`;
-                    text += `Kestus: ${currentTranscription.summary.duration || 'N/A'}\n`;
-                    text += `Keel: ${currentTranscription.summary.language || 'N/A'}\n`;
-                }
-                
-                if (document.getElementById('cleanText').checked) {
-                    text += `Tekst on puhastatud loetavuse parandamiseks\n`;
-                }
-                
-                text += `${'='.repeat(50)}\n\n`;
-                
-                currentTranscription.segments.forEach(segment => {
-                    text += `[${segment.start} - ${segment.end}] ${segment.speaker}:\n`;
-                    text += `${segment.text}\n\n`;
-                });
-            } else if (currentTranscription?.raw) {
-                text = currentTranscription.raw;
-            }
-            
-            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(url);
-            
-            showStatus('Fail allalaaditud!', 'success');
-        }
-
-        // Lae alla JSON
-        function downloadJSON() {
-            if (!currentTranscription?.segments) {
-                showStatus('JSON formaat pole saadaval', 'error');
-                return;
-            }
-            
-            const jsonData = JSON.stringify(currentTranscription, null, 2);
-            const blob = new Blob([jsonData], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'transkriptsioon.json';
-            a.click();
-            URL.revokeObjectURL(url);
-            
-            showStatus('JSON fail allalaaditud!', 'success');
         }
     </script>
 </body>
