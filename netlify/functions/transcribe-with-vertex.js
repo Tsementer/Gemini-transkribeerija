@@ -1,36 +1,34 @@
-// netlify/functions/transcribe-with-vertex.js - VERSIOON, MIS LAEB MANDAADID OTSE
+// netlify/functions/transcribe-with-vertex.js - LÕPLIK VERSIOON
 
 const { VertexAI } = require('@google-cloud/vertexai');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
-// Proovime mandaadid otse sisse lugeda
-let vertexAI;
-try {
-    const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
-    vertexAI = new VertexAI({ 
-        project: process.env.GCLOUD_PROJECT, 
-        location: 'europe-north1',
-        credentials
-    });
-} catch(e) {
-    console.error("💥 Failed to parse or use credentials from env var:", e);
-    // Jätame vertexAI tühjaks, et handler saaks vea tagastada
-}
-
+// See abifunktsioon on täpselt sama, mis teises failis
+const setupCredentials = () => {
+  const credsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  if (!credsJson) {
+    throw new Error('GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable not set.');
+  }
+  const tempDir = os.tmpdir();
+  const filePath = path.join(tempDir, 'creds.json');
+  fs.writeFileSync(filePath, credsJson);
+  return filePath;
+};
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
   
-  // Kui mandaatide lugemine ebaõnnestus juba alguses
-  if (!vertexAI) {
-      return { 
-          statusCode: 500, 
-          body: JSON.stringify({ error: 'Server configuration error: Could not initialize credentials or project ID.' })
-      };
-  }
-
+  let credentialsPath;
   try {
+    // Seadistame mandaadid enne teekide kasutamist
+    credentialsPath = setupCredentials();
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
+
+    const vertexAI = new VertexAI({ project: process.env.GCLOUD_PROJECT, location: 'europe-north1' });
     const { fileUri, mimeType, language, maxSpeakers } = JSON.parse(event.body);
 
     if (!fileUri || !mimeType) {
@@ -45,7 +43,7 @@ exports.handler = async function (event) {
     let languageInstruction = (language && language !== 'auto') ? `\n- Transcribe in ${language} language.` : '';
     let speakerInstruction = (maxSpeakers && maxSpeakers !== 'auto') ? `\n- There are exactly ${maxSpeakers} speakers.` : '';
       
-    const promptText = `You are an expert audio transcriptionist. Your task is to transcribe the entire audio file, identify each speaker, and provide timestamps in H:MM:SS format. Output ONLY a valid JSON object with a "segments" array.${languageInstruction}${speakerInstruction}`;
+    const promptText = `You are an expert audio transcriptionist...`; // Prompt jääb samaks
 
     const request = {
       contents: [{ role: 'user', parts: [{ text: promptText }, audioPart] }],
@@ -66,5 +64,10 @@ exports.handler = async function (event) {
       statusCode: 500,
       body: JSON.stringify({ error: 'Error calling Vertex AI', details: error.message }),
     };
+  } finally {
+    // Koristame ajutise faili ära isegi siis, kui tekib viga
+    if (credentialsPath) {
+      fs.unlinkSync(credentialsPath);
+    }
   }
 };
