@@ -35,7 +35,7 @@ exports.handler = async function (event) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Missing fileUri or mimeType' }) };
     }
 
-    const model = 'gemini-1.5-flash-001'; 
+    const model = 'gemini-2.5-flash'; // ÕIGE JA SOOVITUD MUDEL'; 
     const generativeModel = vertexAI.getGenerativeModel({ model });
     
     const audioPart = { file_data: { mime_type: mimeType, file_uri: fileUri } };
