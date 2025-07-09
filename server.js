@@ -1,6 +1,7 @@
 const express = require('express');
 const { Storage } = require('@google-cloud/storage');
 const { VertexAI } = require('@google-cloud/vertexai');
+const cors = require('cors');
 
 const app = express();
 app.use(cors());
