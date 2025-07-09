@@ -1,69 +1,76 @@
-// netlify/functions/upload-proxy-background.js
+// netlify/functions/generate-upload-url.js - UUENDATUD VERSIOON VERTEX AI JAOKS
 
 const { Storage } = require('@google-cloud/storage');
 
-// See funktsioon käivitub väljaspool handlerit, et vältida iga kord uue kliendi loomist
-const storage = new Storage({
-  // Oluline! Teenusekonto võti peab olema seadistatud Netlify keskkonnamuutujates.
-  // Netlify tunneb automaatselt ära GOOGLE_APPLICATION_CREDENTIALS_JSON muutuja.
-  credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON)
-});
+// See funktsioon käivitub väljaspool handlerit.
+// @google-cloud/storage teek kasutab automaatselt GOOGLE_APPLICATION_CREDENTIALS_JSON
+// keskkonnamuutujat, kui see on olemas. Seega pole vaja mandaate käsitsi määrata.
+const storage = new Storage();
 
-// See on bucket, kuhu Gemini API faile laeb. Tavaliselt on see kindla nimega.
-// Kui see muutub, tuleb seda siin uuendada.
+// See on bucket, kuhu faile laetakse.
 const BUCKET_NAME = 'carl_transkribeerija_failid_2025';
 
 exports.handler = async function (event) {
+  // Lubame päringuid ainult POST meetodiga
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
-  }
-
-  // Kontrollime, et API võti oleks olemas
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return { statusCode: 500, body: JSON.stringify({ error: 'API key not configured' }) };
-  }
-  
-  // Kontrollime, et teenusekonto andmed oleksid olemas
-  if (!process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
-      return { statusCode: 500, body: JSON.stringify({ error: 'Google service account credentials not configured'}) };
+    return { 
+      statusCode: 405, 
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ error: 'Method Not Allowed' })
+    };
   }
 
   try {
+    // Kontrollime, et teenusekonto andmed oleksid Netlify's olemas
+    if (!process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+        console.error('❌ Google service account credentials not configured in Netlify.');
+        return { 
+          statusCode: 500, 
+          headers: { 'Access-Control-Allow-Origin': '*' },
+          body: JSON.stringify({ error: 'Server configuration error: Missing credentials.' })
+        };
+    }
+
     const { fileName, fileType } = JSON.parse(event.body);
 
     if (!fileName || !fileType) {
-        return { statusCode: 400, body: JSON.stringify({ error: 'Missing fileName or fileType in request body' }) };
+        return { 
+          statusCode: 400, 
+          headers: { 'Access-Control-Allow-Origin': '*' },
+          body: JSON.stringify({ error: 'Missing fileName or fileType in request body' }) 
+        };
     }
 
-    // VÕTMEKOHT: Puhastame failinime, asendades kõik erimärgid allkriipsuga
+    // Puhastame failinime, et vältida probleeme erimärkidega
     const sanitizedFileName = fileName
-      .replace(/[^a-zA-Z0-9.\-_]/g, '_')     // Eemalda erimärgid
-      .replace(/_{2,}/g, '_')                // Asenda mitu allkriipsu ühega
-      .replace(/^_+|_+$/g, '')               // Eemalda allkriipsud algusest/lõpust
-      .substring(0, 50);                     // Piira pikkus 50 tähemärgiga
+      .replace(/[^a-zA-Z0-9.\-_]/g, '_')
+      .replace(/_{2,}/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .substring(0, 100); // Piirame pikkust
 
-    // Genereerime unikaalse failinime, et vältida konflikte, KASUTADES PUHASTATUD NIME
     const uniqueFileName = `user-uploads/${new Date().getTime()}-${sanitizedFileName}`;
     
-    // Loome viite failile Google'i bucketis
     const file = storage.bucket(BUCKET_NAME).file(uniqueFileName);
 
-    // Genereerime "allkirjastatud URL-i". See on luba brauserile otse üles laadida.
+    // Genereerime allkirjastatud URL-i, mis lubab brauseril otse faili üles laadida
     const [signedUrl] = await file.getSignedUrl({
       version: 'v4',
-      action: 'write', // Anname loa faili kirjutamiseks
-      expires: Date.now() + 15 * 60 * 1000, // URL kehtib 15 minutit
-      contentType: fileType, // Määrame ära, mis tüüpi faili tohib üles laadida
+      action: 'write',
+      expires: Date.now() + 15 * 60 * 1000, // Kehtib 15 minutit
+      contentType: fileType,
       method: 'PUT',
     });
     
-    // See on URI, mille me hiljem saadame Gemini API-le transkribeerimiseks
+    // See on URI, mille me saadame Gemini API-le
     const fileUri = `gs://${BUCKET_NAME}/${uniqueFileName}`;
 
     // Saadame brauserile tagasi nii allkirjastatud URL-i kui ka faili URI
     return {
       statusCode: 200,
+      headers: { 
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({
         signedUrl: signedUrl,
         fileUri: fileUri,
@@ -71,10 +78,11 @@ exports.handler = async function (event) {
     };
 
   } catch (error) {
-    console.error('Proxy error:', error);
+    console.error('💥 Function error:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Internal proxy error', details: error.message }),
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ error: 'Internal server error', details: error.message }),
     };
   }
 };
