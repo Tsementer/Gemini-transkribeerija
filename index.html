@@ -1063,56 +1063,28 @@ ${transcriptionText}`;
                 let audioPart;
                 
                 if (needsFileUpload) {
-    // --- UUS "SIGNED URL" LOGIKA ---
-
-    // 1. Küsi luba üleslaadimiseks
-    showStatus(`Küsin üleslaadimise luba suurele failile...`, 'info');
-    updateProgress(10, true);
-
-    const proxyResponse = await fetch('/.netlify/functions/generate-upload-url', {
+    // UUS: Kasuta Gemini Files API'd
+    const base64Audio = await fileToBase64(selectedFile);
+    
+    const uploadResponse = await fetch('/.netlify/functions/upload-to-gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             fileName: selectedFile.name,
-            fileType: selectedFile.type || 'audio/m4a'
+            fileData: base64Audio,
+            mimeType: selectedFile.type || 'audio/mp3'
         })
     });
 
-    if (!proxyResponse.ok) {
-        const errorText = await proxyResponse.text();
-        let errorDetails;
-        try {
-           errorDetails = JSON.parse(errorText).details || JSON.parse(errorText).error;
-        } catch(e) {
-           errorDetails = errorText;
-        }
-        throw new Error(`Üleslaadimise loa saamine ebaõnnestus: ${errorDetails}`);
-    }
-
-    const { signedUrl, fileUri } = await proxyResponse.json();
-    uploadedFileUri = fileUri; // Salvesta URI hilisemaks kasutamiseks
-
-    // 2. Lae fail otse Google'isse
-    showStatus(`Laen faili üles otse Google'isse...`, 'info');
-    updateProgress(25, true);
-
-    const uploadResponse = await fetch(signedUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': selectedFile.type || 'audio/m4a' },
-        body: selectedFile
-    });
-
-    if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        throw new Error(`Faili otsene üleslaadimine Google'isse ebaõnnestus: ${errorText}`);
-    }
-
+    const { fileUri } = await uploadResponse.json();
+    
     audioPart = {
         file_data: {
-            mime_type: selectedFile.type || 'audio/m4a',
-            file_uri: uploadedFileUri
+            mime_type: selectedFile.type || 'audio/mp3',
+            file_uri: fileUri  // files/xxx formaat
         }
     };
+}
 
     showStatus('Fail üles laetud, alustan transkribeerimist...', 'info');
     updateProgress(40, false);
