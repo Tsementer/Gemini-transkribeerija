@@ -45,15 +45,13 @@ Process the audio and provide the structured JSON output.`;
     return JSON.parse(responseText);
 }
 
-// --- 2. ETAPP: TÄIUSTATUD PUHASTAMINE JA ÜMBERTÖÖTLEMINE ---
+// --- 2. ETAPP: TÄIUSTATUD PUHASTAMINE JA ÜMBERTÖÖTLEMINE (UUENDATUD) ---
 async function advancedCleaningAndReprocessing(transcriptionData, { shouldClean, cleaningLevel, mergeThreshold, language }) {
-    let processedData = JSON.parse(JSON.stringify(transcriptionData)); // Loo koopia, et originaal säiliks
+    let processedData = JSON.parse(JSON.stringify(transcriptionData));
 
     // A. Segmentide ühendamine (toimub alati enne puhastamist)
     if (mergeThreshold > 0) {
-        if (!processedData.segments || processedData.segments.length === 0) {
-            // Jäta vahele, kui segmente pole
-        } else {
+        if (processedData.segments && processedData.segments.length > 0) {
             const mergedSegments = [];
             let currentSegment = { ...processedData.segments[0] };
             for (let i = 1; i < processedData.segments.length; i++) {
@@ -79,20 +77,20 @@ async function advancedCleaningAndReprocessing(transcriptionData, { shouldClean,
 
         let languageSpecificRules = '';
         if (language === 'et') {
-            languageSpecificRules = `
-### Estonian-Specific Rules:
-- **Fillers:** Aggressively remove: "nii-öelda", "eks ole", "ütleme", "noh", "ee", "ää", "mm".
-- **Grammar:** Correct common grammatical errors and compound words.`;
+            languageSpecificRules = `### Estonian-Specific Rules:\n- **Fillers:** Aggressively remove: "nii-öelda", "eks ole", "ütleme", "noh", "ee", "ää", "mm".`;
         }
-
+        
+        // Uuendatud ja rangemad juhised "Toimetaja" tasemele
         const cleaningLevels = {
-            light: `**Level: Light.** Goal: Minimal edits. Actions: Remove only obvious audible fillers (uh, um, ee). Correct severe stutters. Do not rephrase.`,
-            moderate: `**Level: Moderate.** Goal: Improve readability. Actions: Remove all filler words. Fix repetitions and false starts. Correct basic grammar.`,
-            aggressive: `**Level: Aggressive.** Goal: Create clean, readable text. Actions: Remove all redundancies. Restructure sentences for natural flow. Fix all grammar. The goal is readability.`,
-            editorial: `**Level: Editor.** Goal: Produce publication-ready prose. Actions: Heavy edit. Rephrase sentences and restructure entire passages for maximum clarity and impact. Elevate the language. The result should read like a polished article.`
+            light: `**Level: Light.** Actions: Remove only obvious audible fillers (uh, um, ee). Do not rephrase.`,
+            moderate: `**Level: Moderate.** Actions: Remove all filler words. Fix repetitions and false starts. Correct basic grammar.`,
+            aggressive: `**Level: Aggressive.** Actions: Remove all redundancies. Restructure sentences for natural flow. Fix all grammar.`,
+            editorial: `**Level: Editor.** Goal: Produce publication-ready prose.
+- **CRITICAL ACTION:** You MUST completely eliminate short, non-substantive interjections (like "Mhm", "Jah", "Just", "Okay", "Aha", etc.) by replacing their text content with an empty string (""). This is the most important rule.
+- **ACTIONS:** Rephrase sentences and restructure entire passages for maximum clarity and impact. Elevate the language and vocabulary to be suitable for a published article.`
         };
 
-        const cleaningPrompt = `You are a professional transcription editor. Your task is to refine the provided JSON data according to the specified level.
+        const cleaningPrompt = `You are a professional transcription editor. Your task is to refine the provided JSON data.
 
 1.  **Adhere to the Cleaning Level:**
     ${cleaningLevels[cleaningLevel]}
@@ -118,6 +116,11 @@ ${JSON.stringify(processedData, null, 2)}
         let cleanedText = resp.response.candidates[0].content.parts[0].text;
         cleanedText = cleanedText.replace(/```json\n/g, '').replace(/\n```/g, '');
         processedData = JSON.parse(cleanedText);
+
+        // UUS SAMM: Eemalda programmselt kõik segmendid, mille AI tühjaks tegi
+        if (cleaningLevel === 'editorial' && processedData.segments) {
+            processedData.segments = processedData.segments.filter(segment => segment.text && segment.text.trim() !== '');
+        }
     }
 
     return processedData;
