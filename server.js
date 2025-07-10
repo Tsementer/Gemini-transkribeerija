@@ -9,7 +9,7 @@ app.use(express.json({ limit: '10mb' }));
 
 // --- ABIFUNKTSIOONID ---
 
-// 1. ETAPP: INTELLIGENTNE ESIMENE TRANSKRIPTSIOON
+// --- 1. ETAPP: INTELLIGENTNE ESIMENE TRANSKRIPTSIOON (UUENDATUD JA RANGEMA PROMPTIGA) ---
 async function intelligentTranscription(fileUri, mimeType, language, maxSpeakers) {
     const vertexAI = new VertexAI({ project: process.env.GCLOUD_PROJECT, location: 'europe-north1' });
     const model = vertexAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
@@ -18,11 +18,14 @@ async function intelligentTranscription(fileUri, mimeType, language, maxSpeakers
     const prompt = `
 You are a highly precise audio transcription and diarization system. Your task is to process an audio file and return a structured JSON object.
 
+### CRITICAL RULE:
+- The output text in the "text" field of each segment MUST be in the original spoken language of that segment.
+- **DO NOT TRANSLATE** the speech to English or any other language. If the audio is in Estonian, the transcript must be in Estonian.
+
 ### Core Task:
-1.  **Accurate Transcription:** Transcribe the spoken content with high accuracy.
+1.  **Accurate Transcription:** Transcribe the spoken content with high accuracy in its original language.
 2.  **Speaker Identification:** Identify each unique speaker and label them sequentially (Speaker 1, Speaker 2, etc.).
-3.  **Precise Timestamps:** Assign accurate start and end timestamps in H:MM:SS format for every segment. The end time of the last segment should correspond to the end of speech in the audio.
-4.  **Detect Language:** Identify the primary language of the conversation.
+3.  **Precise Timestamps:** Assign accurate start and end timestamps in H:MM:SS format for every segment.
 
 ### Output Specification:
 - You MUST return ONLY a valid JSON object.
@@ -30,8 +33,9 @@ You are a highly precise audio transcription and diarization system. Your task i
 - The 'summary' object must contain 'total_speakers' (number) and 'language' (string, BCP-47 code, e.g., "et-EE").
 
 ### Language for Transcription:
-- The user has requested transcription in: ${language === 'auto' ? 'auto-detect the language' : language}.
-`;
+- The user has requested transcription in: **${language === 'auto' ? 'auto-detect the language' : language}**.
+
+Process the audio according to all rules and provide the structured JSON output.`;
 
     const request = {
         contents: [{ role: 'user', parts: [{ text: prompt }, audioPart] }],
