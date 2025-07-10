@@ -796,22 +796,57 @@
             }
         }
 
-        // Tulemuste kuvamine
+        // Tulemuste kuvamine (TÄIENDATUD)
         function displayResult(transcriptionData) {
             currentTranscription = transcriptionData;
             const resultBox = document.getElementById('resultBox');
             resultBox.innerHTML = '';
             
-            // Näita statistikat
-            if (document.getElementById('showStats').checked && transcriptionData.summary) {
-                displayStats(transcriptionData);
+            // UUS: Kontrollime, kas tegu on spetsiaalse toimetatud tekstiga
+            if (transcriptionData.isEditorial) {
+                // Kuvame statistika, kui see on olemas
+                if (document.getElementById('showStats').checked && transcriptionData.summary) {
+                    displayStats(transcriptionData);
+                }
+                
+                // Lisame spetsiaalse stiili toimetatud tekstile
+                resultBox.innerHTML = `
+                    <div style="
+                        background: #f8f9fa;
+                        padding: 20px;
+                        border-left: 4px solid #667eea;
+                        line-height: 1.8;
+                        font-size: 16px;
+                        white-space: pre-wrap;
+                        font-family: Georgia, serif;
+                    ">
+                        ${transcriptionData.content.replace(/\n/g, '<br>')}
+                    </div>
+                `;
+                
+                // Peidame ümbertöötlemise nupu, kuna toimetatud teksti ei saa enam muuta
+                const reprocessBtn = document.querySelector('.export-button[onclick*="reprocess"]');
+                if (reprocessBtn) {
+                    reprocessBtn.style.display = 'none';
+                }
             }
-            
-            // Kõnelejate värvid
-            const speakerColors = {};
-            let colorIndex = 1;
-            
-            if (transcriptionData.segments && Array.isArray(transcriptionData.segments)) {
+            // Tavapärane segmentide kuvamine
+            else if (transcriptionData.segments && Array.isArray(transcriptionData.segments)) {
+                // Näita statistikat
+                if (document.getElementById('showStats').checked && transcriptionData.summary) {
+                    displayStats(transcriptionData);
+                }
+                
+                // Näita ümbertöötlemise nuppu
+                const reprocessBtn = document.querySelector('.export-button[onclick*="reprocess"]');
+                if (reprocessBtn) {
+                    reprocessBtn.style.display = 'inline-flex';
+                }
+                
+                // Kõnelejate värvid
+                const speakerColors = {};
+                let colorIndex = 1;
+                
                 transcriptionData.segments.forEach(segment => {
                     if (!speakerColors[segment.speaker]) {
                         speakerColors[segment.speaker] = `speaker-${colorIndex}`;
@@ -840,15 +875,19 @@
         function displayStats(transcriptionData) {
             const statsDiv = document.getElementById('speakerStats');
             const speakerStats = {};
-            let totalSegments = transcriptionData.segments.length;
             
-            transcriptionData.segments.forEach(segment => {
-                if (!speakerStats[segment.speaker]) {
-                    speakerStats[segment.speaker] = { segments: 0, words: 0 };
-                }
-                speakerStats[segment.speaker].segments++;
-                speakerStats[segment.speaker].words += segment.text.split(' ').length;
-            });
+            // Kontrollime, kas on segmendid (toimetatud teksti puhul ei pruugi olla)
+            if (transcriptionData.segments && transcriptionData.segments.length > 0) {
+                let totalSegments = transcriptionData.segments.length;
+                
+                transcriptionData.segments.forEach(segment => {
+                    if (!speakerStats[segment.speaker]) {
+                        speakerStats[segment.speaker] = { segments: 0, words: 0 };
+                    }
+                    speakerStats[segment.speaker].segments++;
+                    speakerStats[segment.speaker].words += segment.text.split(' ').length;
+                });
+            }
             
             let statsHTML = '<h3>📊 Statistika:</h3>';
             if (transcriptionData.summary) {
@@ -868,24 +907,33 @@
                 `;
             }
             
-            statsHTML += '<div style="margin-top: 10px;"><strong>Kõnelejate aktiivsus:</strong></div>';
-            
-            Object.entries(speakerStats).forEach(([speaker, stats]) => {
-                const percentage = Math.round((stats.segments / totalSegments) * 100);
-                statsHTML += `
-                    <div class="speaker-stat-item">
-                        <span>${speaker}:</span>
-                        <span>${stats.segments} lõiku (${percentage}%), ~${stats.words} sõna</span>
-                    </div>
-                `;
-            });
+            // Kuvame kõnelejate aktiivsuse ainult siis, kui on segmendid
+            if (Object.keys(speakerStats).length > 0) {
+                statsHTML += '<div style="margin-top: 10px;"><strong>Kõnelejate aktiivsus:</strong></div>';
+                
+                Object.entries(speakerStats).forEach(([speaker, stats]) => {
+                    const percentage = Math.round((stats.segments / transcriptionData.segments.length) * 100);
+                    statsHTML += `
+                        <div class="speaker-stat-item">
+                            <span>${speaker}:</span>
+                            <span>${stats.segments} lõiku (${percentage}%), ~${stats.words} sõna</span>
+                        </div>
+                    `;
+                });
+            }
             
             statsDiv.innerHTML = statsHTML;
             statsDiv.style.display = 'block';
         }
 
-        // Tulemuste ümbertöötlemine
+        // Tulemuste ümbertöötlemine (TÄIENDATUD)
         async function reprocessResults() {
+            // Kui praegune tulemus on juba toimetatud, ära luba ümbertöötlemist
+            if (currentTranscription?.isEditorial) {
+                showStatus('Toimetatud teksti ei saa uuesti töödelda', 'info');
+                return;
+            }
+            
             if (!originalTranscription) {
                 showStatus('Pole tulemusi, mida töödelda', 'error');
                 return;
@@ -924,11 +972,16 @@
             }
         }
 
-        // Kopeeri lõikelauale
+        // Kopeeri lõikelauale (TÄIENDATUD)
         function copyToClipboard() {
             let text = '';
             
-            if (currentTranscription?.segments) {
+            // Kui tegu on toimetatud tekstiga
+            if (currentTranscription?.isEditorial) {
+                text = currentTranscription.content;
+            }
+            // Tavapärane segmentidega tekst
+            else if (currentTranscription?.segments) {
                 currentTranscription.segments.forEach(segment => {
                     text += `[${segment.start} - ${segment.end}] ${segment.speaker}:\n${segment.text}\n\n`;
                 });
@@ -941,26 +994,33 @@
             });
         }
 
-        // Lae alla TXT
+        // Lae alla TXT (TÄIENDATUD)
         function downloadTranscript() {
             let text = '';
             let filename = 'transkriptsioon.txt';
             
-            if (currentTranscription?.segments) {
-                text = `Transkriptsioon\n`;
-                text += `Kuupäev: ${new Date().toLocaleString('et-EE')}\n`;
-                text += `${selectedFile ? 'Fail: ' + selectedFile.name : ''}\n`;
-                
-                if (currentTranscription.summary) {
-                    text += `Kõnelejaid: ${currentTranscription.summary.total_speakers || 'N/A'}\n`;
-                    text += `Kestus: ${currentTranscription.summary.duration || 'N/A'}\n`;
-                    text += `Keel: ${currentTranscription.summary.language || 'N/A'}\n`;
-                }
-                
+            text = `Transkriptsioon\n`;
+            text += `Kuupäev: ${new Date().toLocaleString('et-EE')}\n`;
+            text += `${selectedFile ? 'Fail: ' + selectedFile.name : ''}\n`;
+            
+            if (currentTranscription?.summary) {
+                text += `Kõnelejaid: ${currentTranscription.summary.total_speakers || 'N/A'}\n`;
+                text += `Kestus: ${currentTranscription.summary.duration || 'N/A'}\n`;
+                text += `Keel: ${currentTranscription.summary.language || 'N/A'}\n`;
+            }
+            
+            // Toimetatud teksti puhul
+            if (currentTranscription?.isEditorial) {
+                text += `\nMärkus: See on professionaalselt toimetatud versioon transkriptsioonist.\n`;
+                text += `${'='.repeat(50)}\n\n`;
+                text += currentTranscription.content;
+                filename = 'transkriptsioon_toimetatud.txt';
+            }
+            // Tavapärane transkriptsioon
+            else if (currentTranscription?.segments) {
                 if (document.getElementById('cleanText').checked) {
                     text += `Tekst on puhastatud loetavuse parandamiseks (tase: ${document.getElementById('cleaningLevel').value})\n`;
                 }
-                
                 text += `${'='.repeat(50)}\n\n`;
                 
                 currentTranscription.segments.forEach(segment => {
@@ -980,10 +1040,10 @@
             showStatus('Fail allalaaditud!', 'success');
         }
 
-        // Lae alla JSON
+        // Lae alla JSON (TÄIENDATUD)
         function downloadJSON() {
-            if (!currentTranscription?.segments) {
-                showStatus('JSON formaat pole saadaval', 'error');
+            if (!currentTranscription) {
+                showStatus('Pole andmeid allalaadimiseks', 'error');
                 return;
             }
             
@@ -992,7 +1052,12 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'transkriptsioon.json';
+            
+            // Toimetatud teksti puhul erinev failinimi
+            a.download = currentTranscription.isEditorial ? 
+                'transkriptsioon_toimetatud.json' : 
+                'transkriptsioon.json';
+            
             a.click();
             URL.revokeObjectURL(url);
             
